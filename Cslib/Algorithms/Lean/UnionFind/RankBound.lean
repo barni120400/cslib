@@ -29,6 +29,9 @@ most `⌊log₂ n⌋`, and uses this bound to define the `find` traversal abstra
 * `UnionFind.isRoot_findRoot`: `findRoot hwf i` is always a root.
 * `UnionFind.not_isRoot_of_lt_findDepth`: Every step strictly before `findDepth` lands on
   a non-root.
+* `UnionFind.rank_iterate_ge`: Along the find path, the rank grows by at least one per step.
+* `UnionFind.findDepth_le_log`: In a well-formed forest, `find` dereferences at most
+  `⌊log₂ n⌋` parent pointers.
 -/
 
 @[expose] public section
@@ -89,5 +92,31 @@ lemma not_isRoot_of_lt_findDepth (hwf : uf.WellFormed) (i : Fin n) {k : ℕ}
     (hk : k < uf.findDepth hwf i) : ¬ uf.IsRoot (uf.parent^[k] i) := by
   unfold findDepth at hk
   exact Nat.find_min (uf.exists_isRoot_iterate hwf i) hk
+
+/-- For every `k ≤ findDepth`, the rank has grown by at least `k` along the find path. -/
+lemma rank_iterate_ge (hwf : uf.WellFormed) (i : Fin n) :
+    ∀ k, k ≤ uf.findDepth hwf i → uf.rank i + k ≤ uf.rank (uf.parent^[k] i) := by
+  intro k
+  induction k with
+  | zero => simp
+  | succ k ih =>
+    intro hk
+    have hk' : k < uf.findDepth hwf i := by omega
+    have hkle : k ≤ uf.findDepth hwf i := by omega
+    have hnot : ¬ uf.IsRoot (uf.parent^[k] i) := uf.not_isRoot_of_lt_findDepth hwf i hk'
+    have hstep : uf.rank (uf.parent^[k] i) < uf.rank (uf.parent (uf.parent^[k] i)) :=
+      hwf.rank_lt (uf.parent^[k] i) hnot
+    have hih := ih hkle
+    rw [Function.iterate_succ_apply']
+    omega
+
+/-- `find` dereferences at most `⌊log₂ n⌋` parent pointers. -/
+theorem findDepth_le_log (hwf : uf.WellFormed) (i : Fin n) :
+    uf.findDepth hwf i ≤ Nat.log 2 n := by
+  have h := uf.rank_iterate_ge hwf i (uf.findDepth hwf i) le_rfl
+  have hroot : uf.parent^[uf.findDepth hwf i] i = uf.findRoot hwf i := rfl
+  rw [hroot] at h
+  have hbound := uf.rank_le_log hwf (uf.findRoot hwf i)
+  omega
 
 end Cslib.Algorithms.Lean.UnionFind
