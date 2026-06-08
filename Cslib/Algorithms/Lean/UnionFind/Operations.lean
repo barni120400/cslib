@@ -32,6 +32,11 @@ reachability under a parent-pointer `Function.update` that underpin its correctn
 * `UnionFind.reaches_root_unique`: Each node reaches a unique root.
 * `UnionFind.iterate_update_eq_of_forall_ne`: Updating a parent pointer leaves a path
   unchanged as long as the path avoids the updated key.
+* `UnionFind.subtree_subset_attach`: Attaching a root under another node only grows subtrees.
+* `UnionFind.subtree_root_subset_attach`: After attaching root `a` under root `b`, every node of
+  `a`'s old subtree lands in `b`'s new subtree.
+* `UnionFind.subtreeSize_attach_ge`: After attaching root `a` under root `b`, the new subtree of
+  `b` is at least as large as the two old subtrees combined.
 -/
 
 @[expose] public section
@@ -110,5 +115,71 @@ lemma iterate_update_eq_of_forall_ne {p : Fin n → Fin n} {a b j : Fin n} {k : 
     rw [Function.iterate_succ_apply', Function.iterate_succ_apply',
       ih (fun m hm => h m (by omega))]
     exact Function.update_of_ne (h k (by omega)) b p
+
+/-- Attaching root `a` under another node `b` only grows subtrees: every old subtree
+is contained in the corresponding subtree of the updated forest. -/
+lemma subtree_subset_attach {a b : Fin n} (ha : uf.IsRoot a)
+    (uf' : UnionFind n) (hp : uf'.parent = Function.update uf.parent a b) (i : Fin n) :
+    uf.subtree i ⊆ uf'.subtree i := by
+  classical
+  intro j hj
+  simp only [subtree, Finset.mem_filter, Finset.mem_univ, true_and] at hj ⊢
+  obtain ⟨k₀, hk₀⟩ := hj
+  -- minimal step count reaching `i`
+  let k := Nat.find (⟨k₀, hk₀⟩ : ∃ k, uf.parent^[k] j = i)
+  have hk : uf.parent^[k] j = i := Nat.find_spec (⟨k₀, hk₀⟩ : ∃ k, uf.parent^[k] j = i)
+  have hmin : ∀ m, m < k → ¬ (uf.parent^[m] j = i) :=
+    fun m hm => Nat.find_min (⟨k₀, hk₀⟩ : ∃ k, uf.parent^[k] j = i) hm
+  -- the path avoids `a` strictly before reaching `i`
+  have key : ∀ m, m < k → uf.parent^[m] j ≠ a := by
+    intro m hm hma
+    -- if the path hits `a` at step m, then it stays at `a = i` from then on
+    have hcancel : uf.parent^[k] j = uf.parent^[k - m] (uf.parent^[m] j) := by
+      rw [← Function.iterate_add_apply, Nat.sub_add_cancel hm.le]
+    rw [hma, uf.iterate_parent_isRoot ha] at hcancel
+    rw [hk] at hcancel
+    -- so `i = a`, hence `uf.parent^[m] j = i`, contradicting minimality
+    exact hmin m hm (by rw [hma, ← hcancel])
+  refine ⟨k, ?_⟩
+  rw [hp, iterate_update_eq_of_forall_ne key, hk]
+
+/-- If `a`'s parent pointer is redirected to `b`, every node of `a`'s old subtree lands in
+`b`'s new subtree. -/
+lemma subtree_root_subset_attach {a b : Fin n}
+    (uf' : UnionFind n) (hp : uf'.parent = Function.update uf.parent a b) :
+    uf.subtree a ⊆ uf'.subtree b := by
+  classical
+  intro j hj
+  simp only [subtree, Finset.mem_filter, Finset.mem_univ, true_and] at hj ⊢
+  obtain ⟨k₀, hk₀⟩ := hj
+  -- minimal step count reaching `a`
+  let k := Nat.find (⟨k₀, hk₀⟩ : ∃ k, uf.parent^[k] j = a)
+  have hk : uf.parent^[k] j = a := Nat.find_spec (⟨k₀, hk₀⟩ : ∃ k, uf.parent^[k] j = a)
+  have hmin : ∀ m, m < k → ¬ (uf.parent^[m] j = a) :=
+    fun m hm => Nat.find_min (⟨k₀, hk₀⟩ : ∃ k, uf.parent^[k] j = a) hm
+  have key := hmin
+  -- after `k` steps in `uf'` we are at `a`; one more step lands at `b`
+  have hk' : uf'.parent^[k] j = a := by
+    rw [hp, iterate_update_eq_of_forall_ne key, hk]
+  refine ⟨k + 1, ?_⟩
+  rw [Function.iterate_succ_apply', hk', hp, Function.update_self]
+
+/-- After attaching root `a` under root `b`, the new subtree of `b` is at least as large as the
+two old subtrees combined. -/
+lemma subtreeSize_attach_ge {a b : Fin n} (ha : uf.IsRoot a) (hb : uf.IsRoot b) (hab : a ≠ b)
+    (uf' : UnionFind n) (hp : uf'.parent = Function.update uf.parent a b) :
+    uf.subtreeSize b + uf.subtreeSize a ≤ uf'.subtreeSize b := by
+  classical
+  have hsub_b : uf.subtree b ⊆ uf'.subtree b := uf.subtree_subset_attach ha uf' hp b
+  have hsub_a : uf.subtree a ⊆ uf'.subtree b := uf.subtree_root_subset_attach uf' hp
+  have hdisj : Disjoint (uf.subtree b) (uf.subtree a) := by
+    rw [Finset.disjoint_left]
+    intro j hjb hja
+    simp only [subtree, Finset.mem_filter, Finset.mem_univ, true_and] at hjb hja
+    exact hab (uf.reaches_root_unique hja ha hjb hb)
+  calc uf.subtreeSize b + uf.subtreeSize a
+      = (uf.subtree b ∪ uf.subtree a).card := (Finset.card_union_of_disjoint hdisj).symm
+    _ ≤ (uf'.subtree b).card := Finset.card_le_card (Finset.union_subset hsub_b hsub_a)
+    _ = uf'.subtreeSize b := rfl
 
 end Cslib.Algorithms.Lean.UnionFind
