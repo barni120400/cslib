@@ -37,6 +37,9 @@ reachability under a parent-pointer `Function.update` that underpin its correctn
   `a`'s old subtree lands in `b`'s new subtree.
 * `UnionFind.subtreeSize_attach_ge`: After attaching root `a` under root `b`, the new subtree of
   `b` is at least as large as the two old subtrees combined.
+* `UnionFind.link_wellFormed`: Union by rank preserves well-formedness — linking two distinct
+  roots of a well-formed forest yields a well-formed forest. Consequently the `findDepth_le_log`
+  bound applies to every forest built from singletons by unions.
 -/
 
 @[expose] public section
@@ -181,5 +184,112 @@ lemma subtreeSize_attach_ge {a b : Fin n} (ha : uf.IsRoot a) (hb : uf.IsRoot b) 
       = (uf.subtree b ∪ uf.subtree a).card := (Finset.card_union_of_disjoint hdisj).symm
     _ ≤ (uf'.subtree b).card := Finset.card_le_card (Finset.union_subset hsub_b hsub_a)
     _ = uf'.subtreeSize b := rfl
+
+/-- Attaching a strictly-lower-rank root `a` under root `b` (ranks unchanged) preserves
+well-formedness. -/
+private lemma attach_lt_wellFormed (hwf : uf.WellFormed) {a b : Fin n}
+    (ha : uf.IsRoot a) (hr : uf.rank a < uf.rank b) :
+    ({ uf with parent := Function.update uf.parent a b }).WellFormed := by
+  set uf' : UnionFind n := { uf with parent := Function.update uf.parent a b } with huf'
+  refine ⟨fun i hi => ?_, fun i => ?_⟩
+  · -- rank_lt
+    by_cases hia : i = a
+    · subst hia
+      have hp : uf'.parent i = b := Function.update_self ..
+      rw [hp]
+      exact hr
+    · have hp : uf'.parent i = uf.parent i := Function.update_of_ne hia b uf.parent
+      have hnr : ¬ uf.IsRoot i := by
+        intro hroot
+        apply hi
+        change uf'.parent i = i
+        rw [hp]; exact hroot
+      change uf'.rank i < uf'.rank (uf'.parent i)
+      rw [hp]
+      exact hwf.rank_lt i hnr
+  · -- size_ge
+    change 2 ^ uf.rank i ≤ uf'.subtreeSize i
+    have hmono : uf.subtree i ⊆ uf'.subtree i := uf.subtree_subset_attach ha uf' rfl i
+    have hcard : uf.subtreeSize i ≤ uf'.subtreeSize i := Finset.card_le_card hmono
+    exact le_trans (hwf.size_ge i) hcard
+
+/-- The tie case: attaching `a` under `b` and incrementing `b`'s rank preserves
+well-formedness. -/
+private lemma attach_eq_wellFormed (hwf : uf.WellFormed) {a b : Fin n}
+    (ha : uf.IsRoot a) (hb : uf.IsRoot b) (hab : a ≠ b) (hr : uf.rank a = uf.rank b) :
+    ({ uf with parent := Function.update uf.parent a b,
+               rank := Function.update uf.rank b (uf.rank b + 1) }).WellFormed := by
+  set uf' : UnionFind n :=
+    { uf with parent := Function.update uf.parent a b,
+              rank := Function.update uf.rank b (uf.rank b + 1) } with huf'
+  have hba : b ≠ a := fun h => hab h.symm
+  refine ⟨fun i hi => ?_, fun i => ?_⟩
+  · -- rank_lt
+    by_cases hia : i = a
+    · subst hia
+      have hpi : uf'.parent i = b := Function.update_self ..
+      have hri : uf'.rank i = uf.rank i := Function.update_of_ne hab _ _
+      have hrb : uf'.rank b = uf.rank b + 1 := Function.update_self ..
+      rw [hpi, hri, hrb]
+      omega
+    · have hpi : uf'.parent i = uf.parent i := Function.update_of_ne hia b uf.parent
+      have hnr : ¬ uf.IsRoot i := by
+        intro hroot
+        apply hi
+        change uf'.parent i = i
+        rw [hpi]; exact hroot
+      have hlt := hwf.rank_lt i hnr
+      by_cases hib : i = b
+      · -- vacuous: b is a root in uf', contradicting hi
+        exfalso
+        apply hi
+        change uf'.parent i = i
+        rw [hpi, hib]
+        exact hb
+      · have hri : uf'.rank i = uf.rank i := Function.update_of_ne hib _ _
+        rw [hpi, hri]
+        by_cases hpb : uf.parent i = b
+        · have hrp : uf'.rank (uf.parent i) = uf.rank b + 1 := by
+            rw [hpb]; exact Function.update_self ..
+          rw [hrp]
+          rw [hpb] at hlt
+          omega
+        · have hrp : uf'.rank (uf.parent i) = uf.rank (uf.parent i) :=
+            Function.update_of_ne hpb _ _
+          rw [hrp]
+          exact hlt
+  · -- size_ge
+    by_cases hib : i = b
+    · subst hib
+      have hri : uf'.rank i = uf.rank i + 1 := Function.update_self ..
+      change 2 ^ uf'.rank i ≤ uf'.subtreeSize i
+      rw [hri]
+      have hpow : 2 ^ (uf.rank i + 1) = 2 ^ uf.rank i + 2 ^ uf.rank i := by
+        rw [Nat.pow_succ]; omega
+      have hsb : 2 ^ uf.rank i ≤ uf.subtreeSize i := hwf.size_ge i
+      have hsa : 2 ^ uf.rank i ≤ uf.subtreeSize a := by
+        have := hwf.size_ge a
+        rwa [hr] at this
+      have hgrow : uf.subtreeSize i + uf.subtreeSize a ≤ uf'.subtreeSize i :=
+        uf.subtreeSize_attach_ge ha hb hab uf' rfl
+      rw [hpow]
+      omega
+    · have hri : uf'.rank i = uf.rank i := Function.update_of_ne hib _ _
+      change 2 ^ uf'.rank i ≤ uf'.subtreeSize i
+      rw [hri]
+      have hmono : uf.subtree i ⊆ uf'.subtree i := uf.subtree_subset_attach ha uf' rfl i
+      have hcard : uf.subtreeSize i ≤ uf'.subtreeSize i := Finset.card_le_card hmono
+      exact le_trans (hwf.size_ge i) hcard
+
+/-- Union by rank preserves well-formedness: linking two distinct roots of a well-formed
+forest yields a well-formed forest. -/
+theorem link_wellFormed (hwf : uf.WellFormed) {a b : Fin n}
+    (ha : uf.IsRoot a) (hb : uf.IsRoot b) (hab : a ≠ b) :
+    (uf.link a b).WellFormed := by
+  rw [link]
+  split_ifs with h1 h2
+  · exact uf.attach_lt_wellFormed hwf ha h1
+  · exact uf.attach_lt_wellFormed hwf hb h2
+  · exact uf.attach_eq_wellFormed hwf ha hb hab (by omega)
 
 end Cslib.Algorithms.Lean.UnionFind
