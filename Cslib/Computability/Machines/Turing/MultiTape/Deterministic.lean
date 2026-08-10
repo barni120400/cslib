@@ -14,6 +14,7 @@ public import Mathlib.Algebra.Order.BigOperators.Group.Finset
 public import Mathlib.Computability.Language
 public import Mathlib.Data.Sign.Defs
 public import Cslib.Foundations.Data.RelatesInSteps
+public import Cslib.Foundations.Semantics.LTS.Execution
 
 /-!
 # Deterministic Multi-Tape Turing Machines
@@ -68,8 +69,8 @@ We define a number of structures and concepts related to multi-tape Turing machi
 
 * `MultiTapeTM`: the TM itself
 * `Cfg`: the configuration of a TM: the internal state, the work tape contents and head positions
-* `spaceUsed`: the number of work tape cells touched by the heads until a certain step
 * `TransitionRelation`: the transition relation from one configuration to the next
+* `lts`: the labelled transition system on configurations, labelled by the emitted symbol
 * `spaceUsed`: the number of tape cells touched by work tape heads, our main space measure
 * `ComputesInTimeAndSpace`: a proof that a specific TM computes an output from an input in a certain
     number of steps and using a certain number of tape cells
@@ -78,12 +79,17 @@ We define a number of structures and concepts related to multi-tape Turing machi
 * `DecidableInTimeAndSpace`: a proof that a TM decides a language within a certain time
     and space bound.
 
-There are two ways to talk about the behaviour of a multi-tape Turing machine, and they are
-proven to be equivalent.
+There are three ways to talk about the behaviour of a multi-tape Turing machine.
 
 * `MultiTapeTM.configs`: a sequence of configurations by execution step
 * `RelatesInSteps tm.TransitionRelation cfg cfg' t`: a proof that `tm` transforms the configuration
-    `cfg` into `cfg'` in exactly `t` steps
+    `cfg` into `cfg'` in exactly `t` steps, proven equivalent to the above
+* `Cslib.LTS.Execution (tm.lts input) ...`: a run of the transition system, carrying both the
+    configurations visited and the symbols emitted
+
+`ComputesInTimeAndSpace` is stated in the third form. The measures are correspondingly split:
+`spaceUsedOfCfgs` and `outputOfLabels` read space and output off a run's data, while `spaceUsed`
+and `outputString` are the `configs`-based views.
 
 ## References
 
@@ -283,6 +289,10 @@ end Cfg
 section Space
 /-! Now we define space usage and add some helper lemmas. -/
 
+/-- The number of work tape cells touched along a list of configurations. -/
+def spaceUsedOfCfgs (cfgs : List (Cfg k Symbol State input)) : ℕ :=
+  ∑ i, (cfgs.map (·.workTapePos i)).toFinset.card
+
 /--
 The number of work tape cells touched by the head of tape `i` in the computation starting from
 configuration `cfg` up to step `t`.
@@ -294,15 +304,19 @@ def spaceUsedByTape (cfg : Cfg k Symbol State input) (t : ℕ) (i : Fin k) : ℕ
 The number of work tape cells touched by a computation starting from configuration
 `cfg` up to step `t`.
 -/
-def spaceUsed (cfg : Cfg k Symbol State input) (t : ℕ) : ℕ := ∑ i, tm.spaceUsedByTape cfg t i
+def spaceUsed (cfg : Cfg k Symbol State input) (t : ℕ) : ℕ :=
+  spaceUsedOfCfgs ((List.range (t + 1)).map (tm.configs cfg))
+
+lemma spaceUsed_eq_sum (cfg : Cfg k Symbol State input) (t : ℕ) :
+    tm.spaceUsed cfg t = ∑ i, tm.spaceUsedByTape cfg t i := by
+  simp [spaceUsed, spaceUsedOfCfgs, spaceUsedByTape, List.map_map, Function.comp_def]
 
 /-- A zero-tape Turing machine uses zero space. -/
 @[simp]
 lemma spaceUsed_zero_tapes_eq_zero (cfg : Cfg k Symbol State input) (t : ℕ) (h_zero : k = 0) :
     tm.spaceUsed cfg t = 0 := by
-  unfold spaceUsed
   subst h_zero
-  simp
+  simp [spaceUsed, spaceUsedOfCfgs]
 
 /-- The number of cells touched by a single work tape grows by at most one each step. -/
 lemma spaceUsedByTape_le (cfg : Cfg k Symbol State input) (t : ℕ) (i : Fin k) :
@@ -318,7 +332,7 @@ The space used by a computation is bounded linearly by the number of steps.
 lemma spaceUsed_linear (cfg : Cfg k Symbol State input) (t : ℕ) :
     tm.spaceUsed cfg t ≤ k * t + k := by
   calc tm.spaceUsed cfg t
-      = ∑ i, (tm.spaceUsedByTape cfg t i) := by rfl
+      = ∑ i, (tm.spaceUsedByTape cfg t i) := tm.spaceUsed_eq_sum cfg t
     _ ≤ ∑ i, (t + 1) := Finset.sum_le_sum (fun i _ => tm.spaceUsedByTape_le cfg t i)
     _ = k * t + k := by simp [Nat.mul_succ]
 
@@ -333,6 +347,25 @@ which maps a configuration to its next configuration.
 -/
 @[scoped grind =]
 def TransitionRelation (c₁ c₂ : Cfg k Symbol State input) : Prop := tm.step c₁ = c₂
+
+/--
+The labelled transition system of `tm`, on configurations, labelled by the symbol the step emits.
+
+`step` is total because it idles at the halting configuration, which is what makes `configs`
+defined for every step count. Here halting configurations are instead *terminal*, so a
+`Cslib.LTS.Execution` of `lts` ends exactly when the machine stops and its length is the running
+time.
+-/
+def lts (tm : MultiTapeTM k Symbol State) (input : List Symbol) :
+    LTS (Cfg k Symbol State input) (Option Symbol) where
+  Tr c₁ o c₂ := c₁.state ≠ none ∧ o = tm.outputSymbol c₁ ∧ c₂ = tm.step c₁
+
+theorem lts_tr_iff {c₁ c₂ : Cfg k Symbol State input} {o : Option Symbol} :
+    (tm.lts input).Tr c₁ o c₂ ↔
+      c₁.state ≠ none ∧ o = tm.outputSymbol c₁ ∧ c₂ = tm.step c₁ := Iff.rfl
+
+/-- The string emitted along a run, from the symbols emitted at each of its steps. -/
+def outputOfLabels (labels : List (Option Symbol)) : List Symbol := labels.flatMap Option.toList
 
 /-- The string output by the Turing machine `tm` starting in configuration `cfg₀`, executing for
 `t` steps. It is the concatenation of the symbols (optionally) emitted at each of the first `t`
@@ -377,16 +410,25 @@ lemma outputString_add_eq_append
     rw [show (t₁ + (t + 1)) = (t₁ + t) + 1 by omega]
     simp [outputString_succ, ih, configs, ← Function.iterate_add_apply, Nat.add_comm]
 
-/-- A proof that the Turing machine `tm` on input `input` outputs `output` in at most `t` steps
+/--
+A proof that the Turing machine `tm` on input `input` outputs `output` in at most `t` steps
 and uses exactly `s` space.
+
+This is a `Cslib.LTS.Execution` of `lts`: a run from `initCfg` of at most `t` steps, ending halted,
+emitting `output` and touching exactly `s` work tape cells. Since halted configurations are terminal
+in `lts`, the run stops when the machine does, so `labels.length` is the actual running time rather
+than the bound.
+
 Note that this does not require the alphabet or state set to be finite. -/
 def ComputesInTimeAndSpace
     (tm : MultiTapeTM k Symbol State)
     (input output : List Symbol)
     (t s : ℕ) : Prop :=
-  (tm.configs (tm.initCfg input) t).state = none ∧
-  tm.outputString (tm.initCfg input) t = output ∧
-  tm.spaceUsed (tm.initCfg input) t = s
+  ∃ labels cfin visited, labels.length ≤ t ∧
+    (tm.lts input).Execution (tm.initCfg input) labels cfin visited ∧
+    cfin.state = none ∧
+    outputOfLabels labels = output ∧
+    spaceUsedOfCfgs visited = s
 
 /-- A proof that the Turing machine `tm` computes the function `f` such that on all inputs of
 length `n` it uses at most `t n` steps and `s n` space. It assumes an embedding function
