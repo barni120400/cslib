@@ -14,6 +14,7 @@ public import Mathlib.Algebra.Order.BigOperators.Group.Finset
 public import Mathlib.Computability.Language
 public import Mathlib.Data.Sign.Defs
 public import Cslib.Foundations.Data.RelatesInSteps
+public import Cslib.Foundations.Semantics.LTS.Execution
 
 /-!
 # Deterministic Multi-Tape Turing Machines
@@ -283,6 +284,17 @@ end Cfg
 section Space
 /-! Now we define space usage and add some helper lemmas. -/
 
+def spaceUsedOfCfgs (cfgs : List (Cfg k Symbol State input)) : ℕ :=
+  ∑ i, (cfgs.map (·.workTapePos i)).toFinset.card
+
+lemma spaceUsedOfCfgs_le (cfgs : List (Cfg k Symbol State input)) :
+    spaceUsedOfCfgs cfgs ≤ k * cfgs.length := by
+  calc spaceUsedOfCfgs cfgs
+      ≤ ∑ _i : Fin k, cfgs.length :=
+        Finset.sum_le_sum fun i _ => by
+          simpa using List.toFinset_card_le (cfgs.map (·.workTapePos i))
+    _ = k * cfgs.length := by simp
+
 /--
 The number of work tape cells touched by the head of tape `i` in the computation starting from
 configuration `cfg` up to step `t`.
@@ -294,15 +306,15 @@ def spaceUsedByTape (cfg : Cfg k Symbol State input) (t : ℕ) (i : Fin k) : ℕ
 The number of work tape cells touched by a computation starting from configuration
 `cfg` up to step `t`.
 -/
-def spaceUsed (cfg : Cfg k Symbol State input) (t : ℕ) : ℕ := ∑ i, tm.spaceUsedByTape cfg t i
+def spaceUsed (cfg : Cfg k Symbol State input) (t : ℕ) : ℕ :=
+  spaceUsedOfCfgs ((List.range (t + 1)).map (tm.configs cfg))
 
 /-- A zero-tape Turing machine uses zero space. -/
 @[simp]
 lemma spaceUsed_zero_tapes_eq_zero (cfg : Cfg k Symbol State input) (t : ℕ) (h_zero : k = 0) :
     tm.spaceUsed cfg t = 0 := by
-  unfold spaceUsed
   subst h_zero
-  simp
+  simp [spaceUsed, spaceUsedOfCfgs]
 
 /-- The number of cells touched by a single work tape grows by at most one each step. -/
 lemma spaceUsedByTape_le (cfg : Cfg k Symbol State input) (t : ℕ) (i : Fin k) :
@@ -317,10 +329,8 @@ The space used by a computation is bounded linearly by the number of steps.
 -/
 lemma spaceUsed_linear (cfg : Cfg k Symbol State input) (t : ℕ) :
     tm.spaceUsed cfg t ≤ k * t + k := by
-  calc tm.spaceUsed cfg t
-      = ∑ i, (tm.spaceUsedByTape cfg t i) := by rfl
-    _ ≤ ∑ i, (t + 1) := Finset.sum_le_sum (fun i _ => tm.spaceUsedByTape_le cfg t i)
-    _ = k * t + k := by simp [Nat.mul_succ]
+  simpa [spaceUsed, Nat.mul_succ] using
+    spaceUsedOfCfgs_le ((List.range (t + 1)).map (tm.configs cfg))
 
 end Space
 
@@ -334,13 +344,35 @@ which maps a configuration to its next configuration.
 @[scoped grind =]
 def TransitionRelation (c₁ c₂ : Cfg k Symbol State input) : Prop := tm.step c₁ = c₂
 
+def lts (tm : MultiTapeTM k Symbol State) (input : List Symbol) :
+    LTS (Cfg k Symbol State input) (Option Symbol) where
+  Tr c₁ o c₂ := c₁.state ≠ none ∧ o = tm.outputSymbol c₁ ∧ c₂ = tm.step c₁
+
+theorem lts_tr_iff {c₁ c₂ : Cfg k Symbol State input} {o : Option Symbol} :
+    (tm.lts input).Tr c₁ o c₂ ↔
+      c₁.state ≠ none ∧ o = tm.outputSymbol c₁ ∧ c₂ = tm.step c₁ := Iff.rfl
+
+def outputOfLabels (labels : List (Option Symbol)) : List Symbol := labels.flatMap Option.toList
+
+@[simp]
+lemma outputOfLabels_nil : outputOfLabels ([] : List (Option Symbol)) = [] := rfl
+
+@[simp]
+lemma outputOfLabels_append (labels₁ labels₂ : List (Option Symbol)) :
+    outputOfLabels (labels₁ ++ labels₂) = outputOfLabels labels₁ ++ outputOfLabels labels₂ := by
+  simp [outputOfLabels]
+
+@[simp]
+lemma outputOfLabels_singleton (o : Option Symbol) : outputOfLabels [o] = o.toList := by
+  simp [outputOfLabels]
+
 /-- The string output by the Turing machine `tm` starting in configuration `cfg₀`, executing for
 `t` steps. It is the concatenation of the symbols (optionally) emitted at each of the first `t`
 steps. -/
 def outputString
     (tm : MultiTapeTM k Symbol State)
     (cfg₀ : Cfg k Symbol State input) (t : ℕ) : List Symbol :=
-  (List.range t).flatMap fun t' => (tm.outputSymbol (tm.configs cfg₀ t')).toList
+  outputOfLabels ((List.range t).map fun t' => tm.outputSymbol (tm.configs cfg₀ t'))
 
 /-- The output produced in `t + 1` steps is the output produced in `t` steps followed by the symbol
 (optionally) emitted at step `t`. -/
@@ -349,7 +381,7 @@ lemma outputString_succ
     (cfg : Cfg k Symbol State input) (t : ℕ) :
     tm.outputString cfg (t + 1) =
       tm.outputString cfg t ++ (tm.outputSymbol (tm.configs cfg t)).toList := by
-  simp [outputString, List.range_succ, List.flatMap_append]
+  simp [outputString, List.range_succ]
 
 /-- From a halting configuration, a TM does not output anything. -/
 lemma outputString_halt
@@ -384,9 +416,11 @@ def ComputesInTimeAndSpace
     (tm : MultiTapeTM k Symbol State)
     (input output : List Symbol)
     (t s : ℕ) : Prop :=
-  (tm.configs (tm.initCfg input) t).state = none ∧
-  tm.outputString (tm.initCfg input) t = output ∧
-  tm.spaceUsed (tm.initCfg input) t = s
+  ∃ labels cfin visited, labels.length ≤ t ∧
+    (tm.lts input).Execution (tm.initCfg input) labels cfin visited ∧
+    cfin.state = none ∧
+    outputOfLabels labels = output ∧
+    spaceUsedOfCfgs visited = s
 
 /-- A proof that the Turing machine `tm` computes the function `f` such that on all inputs of
 length `n` it uses at most `t n` steps and `s n` space. It assumes an embedding function
