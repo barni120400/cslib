@@ -19,8 +19,7 @@ public import Cslib.Init
 # Configurations of Multi-Tape Turing Machines
 
 Configurations of a multi-tape Turing machine with a read-only input tape, `k` work tapes and one
-write-only output tape, together with what a single transition does to one and the space measure
-read off a list of them.
+write-only output tape, together with what a single transition does to one.
 
 ## Design
 
@@ -39,7 +38,6 @@ the configuration the run ends in.
 * `Action`: what a machine does in one step
 * `Action.apply`: the effect of one action on a configuration
 * `Cfg.Halted`, `Cfg.init`: halting, and the configuration a machine starts in
-* `spaceUsedOfCfgs`: work tape cells touched along a list of configurations
 -/
 
 @[expose] public section
@@ -175,13 +173,5 @@ lemma workTapePos_apply_le (out : Action k Symbol State)
     |(out.apply cfg).workTapePos i - cfg.workTapePos i| ≤ 1 := by
   simp only [Action.apply, add_sub_cancel_left, abs_le, SignType.cast]
   grind
-
-/-- The work tape cells visited by the head of tape `i` along a list of configurations. -/
-def visitedOfCfgs (cfgs : List (Cfg k Symbol State input)) (i : Fin k) : Finset ℤ :=
-  (cfgs.map (·.workTapePos i)).toFinset
-
-/-- The number of work tape cells touched by the heads along a list of configurations. -/
-def spaceUsedOfCfgs (cfgs : List (Cfg k Symbol State input)) : ℕ :=
-  ∑ i, (visitedOfCfgs cfgs i).card
 
 end Turing

@@ -34,6 +34,7 @@ witness.
 
 * `MultiTapeNTM`: the machine, an initial state and a transition relation
 * `Step`: the one-step relation on configurations
+* `IsDeterministic`: every situation permits exactly one transition
 * `ComputationPath`: a run of the machine: a series of configurations from the initial one, each
     reached from the previous by a step
 * `ComputesSuchThat`: some computation halts, emits a given output and meets a given constraint
@@ -82,6 +83,13 @@ lemma step_of_halt {c c' : Cfg k Symbol State input} (h : c.Halted) :
     ntm.Step c c' ↔ c' = c := by
   simp [Step, h]
 
+/-- A machine is deterministic when every situation permits exactly one transition. A deterministic
+multi-tape Turing machine is exactly a machine of this kind, see
+`MultiTapeTM.isDeterministic`. -/
+def IsDeterministic (ntm : MultiTapeNTM k Symbol State) : Prop :=
+  ∀ (q : State) (input : Option Symbol) (work : Fin k → Option Symbol),
+    ∃! out, ntm.Tr q input work out
+
 /-- The initial configuration corresponding to an input string. -/
 @[simp]
 def initCfg (ntm : MultiTapeNTM k Symbol State) (input : List Symbol) :
@@ -102,8 +110,12 @@ namespace ComputationPath
 
 variable {ntm : MultiTapeNTM k Symbol State} {input : List Symbol}
 
-/-- The number of work tape cells touched. -/
-def space (p : ntm.ComputationPath input) : ℕ := spaceUsedOfCfgs p.toList
+/-- The work tape cells the head of tape `i` visits during the computation. -/
+def visited (p : ntm.ComputationPath input) (i : Fin k) : Finset ℤ :=
+  (p.toList.map (·.workTapePos i)).toFinset
+
+/-- The number of work tape cells the computation touches, its space usage. -/
+def space (p : ntm.ComputationPath input) : ℕ := ∑ i, (p.visited i).card
 
 end ComputationPath
 

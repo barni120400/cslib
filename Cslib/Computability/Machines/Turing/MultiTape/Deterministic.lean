@@ -9,7 +9,7 @@ module
 public import Mathlib.Algebra.Order.BigOperators.Group.Finset
 public import Mathlib.Computability.Language
 public import Cslib.Foundations.Data.RelatesInSteps
-public import Cslib.Computability.Machines.Turing.MultiTape.Configuration
+public import Cslib.Computability.Machines.Turing.MultiTape.Nondeterministic
 
 /-!
 # Deterministic Multi-Tape Turing Machines
@@ -62,9 +62,9 @@ the sub-linear space modifications from chapter 2.5 with the following changes:
 
 We define a number of structures and concepts related to multi-tape Turing machine computation:
 
-* `MultiTapeTM`: the TM itself
-* `spaceUsed`: the number of work tape cells touched by the heads until a certain step
-* `TransitionRelation`: the transition relation from one configuration to the next
+* `MultiTapeTM`: the TM itself, a `MultiTapeNTM` permitting exactly one transition in every
+    situation, with `ofTr` building one from a transition function
+* `step`, `runFrom`: the successor configuration, and the one reached after a number of steps
 * `spaceUsed`: the number of tape cells touched by work tape heads, our main space measure
 * `ComputesInTimeAndSpace`: a proof that a specific TM computes an output from an input in a certain
     number of steps and using a certain number of tape cells
@@ -73,12 +73,18 @@ We define a number of structures and concepts related to multi-tape Turing machi
 * `DecidableInTimeAndSpace`: a proof that a TM decides a language within a certain time
     and space bound.
 
-There are two ways to talk about the behaviour of a multi-tape Turing machine, and they are
+Being a nondeterministic machine, everything defined for `MultiTapeNTM` applies. Determinism makes
+those notions concrete: `ntmStep_iff` says a step is exactly what `step` computes,
+`computation_toFun` that every computation is the machine's own run, and
+`computesInTimeAndSpace_iff` restates computing as a statement about that run.
+
+There are three ways to talk about the behaviour of a multi-tape Turing machine, and they are
 proven to be equivalent.
 
 * `MultiTapeTM.runFrom`: the configuration reached after a given number of execution steps
-* `RelatesInSteps tm.TransitionRelation cfg cfg' t`: a proof that `tm` transforms the configuration
+* `RelatesInSteps tm.Step cfg cfg' t`: a proof that `tm` transforms the configuration
     `cfg` into `cfg'` in exactly `t` steps
+* `tm.Computation input`: a run of the machine, in the nondeterministic sense
 
 ## References
 
@@ -98,18 +104,30 @@ variable {k : ℕ} {State Symbol : Type*}
 
 /--
 A multi-tape Turing machine with `k` work tapes over the alphabet of `Option Symbol` (where `none`
-is the blank tape symbol). Note that it is not required that `Symbol` or `State` are finite
-to keep the definition more general. The restriction will be introduced once we start talking about
-computability by Turing machines in general.
+is the blank tape symbol). It is a nondeterministic machine that permits exactly the transition its
+transition function prescribes, so everything defined for `MultiTapeNTM` applies to it. Note that it
+is not required that `Symbol` or `State` are finite to keep the definition more general. The
+restriction will be introduced once we start talking about computability by Turing machines in
+general.
 -/
-structure MultiTapeTM (k : ℕ) (Symbol State : Type*) where
-  /-- initial state -/
-  q₀ : State
+structure MultiTapeTM (k : ℕ) (Symbol State : Type*) extends MultiTapeNTM k Symbol State where
   /-- transition function, mapping a state, the current input symbol and a tuple of work head
   symbols to a movement for the input head, actions on the work tape, optionally a symbol to output
   and the successor state -/
   tr (q : State) (input : Option Symbol) (work : Fin k → Option Symbol) :
     Action k Symbol State
+  /-- the only permitted transition is the one `tr` prescribes -/
+  Tr_eq : ∀ q input work out, toMultiTapeNTM.Tr q input work out ↔ out = tr q input work
+
+/-- The deterministic machine with initial state `q₀` following the transition function `tr`. -/
+def MultiTapeTM.ofTr (q₀ : State)
+    (tr : (q : State) → (input : Option Symbol) → (work : Fin k → Option Symbol) →
+      Action k Symbol State) :
+    MultiTapeTM k Symbol State where
+  q₀ := q₀
+  Tr q input work out := out = tr q input work
+  tr := tr
+  Tr_eq _ _ _ _ := Iff.rfl
 
 namespace MultiTapeTM
 
@@ -138,15 +156,40 @@ def outputSymbol (cfg : Cfg k Symbol State input) : Option Symbol :=
   | none => none
   | some q => (tm.tr q cfg.inputSymbol cfg.workTapeSymbols).outS
 
-/-- The initial configuration corresponding to an input string. -/
-@[simp]
-def initCfg (input : List Symbol) : Cfg k Symbol State input := Cfg.init tm.q₀ input
-
 @[simp]
 lemma step_of_halt {cfg : Cfg k Symbol State input} (h : cfg.state = none) :
     tm.step cfg = cfg := by
   unfold step
   rw [h]
+
+/-- A deterministic machine permits exactly one transition in every situation. -/
+theorem isDeterministic (tm : MultiTapeTM k Symbol State) : tm.toMultiTapeNTM.IsDeterministic :=
+  fun q input work =>
+    ⟨tm.tr q input work, (tm.Tr_eq _ _ _ _).mpr rfl, fun _ h => (tm.Tr_eq _ _ _ _).mp h⟩
+
+/-- Read nondeterministically, the machine steps as `step` says. -/
+theorem ntmStep (c : Cfg k Symbol State input) : tm.toMultiTapeNTM.Step c (tm.step c) := by
+  cases hq : c.state with
+  | none => simp [MultiTapeNTM.Step, step, hq]
+  | some q =>
+    simp only [MultiTapeNTM.Step, hq]
+    exact ⟨tm.tr q c.inputSymbol c.workTapeSymbols, (tm.Tr_eq _ _ _ _).mpr rfl, by simp [step, hq]⟩
+
+/-- And it can step no other way. -/
+theorem eq_step_of_ntmStep {c c' : Cfg k Symbol State input}
+    (h : tm.toMultiTapeNTM.Step c c') : c' = tm.step c := by
+  cases hq : c.state with
+  | none => simp [MultiTapeNTM.Step, hq] at h; simp [step, hq, h]
+  | some q =>
+    simp only [MultiTapeNTM.Step, hq] at h
+    obtain ⟨out, hout, rfl⟩ := h
+    rw [(tm.Tr_eq _ _ _ _).mp hout]
+    simp [step, hq]
+
+/-- A step of the machine is exactly the step `step` takes. -/
+@[scoped grind =]
+lemma ntmStep_iff {c c' : Cfg k Symbol State input} : tm.Step c c' ↔ c' = tm.step c :=
+  ⟨eq_step_of_ntmStep, fun h => h ▸ ntmStep c⟩
 
 /-- The configuration reached by running the Turing machine for `t` steps from `cfg`.
 If the Turing machine halts, it will stay at the halting configuration. -/
@@ -229,14 +272,6 @@ lemma spaceUsedByTape_le_spaceUsed (cfg : Cfg k Symbol State input) (t : ℕ) (i
     tm.spaceUsedByTape cfg t i ≤ tm.spaceUsed cfg t :=
   Finset.single_le_sum (fun _ _ => Nat.zero_le _) (Finset.mem_univ i)
 
-/-- The space used up to step `t` is the space touched by the configurations up to step `t`. -/
-lemma spaceUsed_eq_spaceUsedOfCfgs (cfg : Cfg k Symbol State input) (t : ℕ) :
-    tm.spaceUsed cfg t = spaceUsedOfCfgs ((List.range (t + 1)).map (tm.runFrom cfg)) := by
-  unfold spaceUsed spaceUsedByTape spaceUsedOfCfgs
-  refine Finset.sum_congr rfl fun i _ => congrArg Finset.card ?_
-  ext z
-  simp [visitedByTapeHead, visitedOfCfgs, Nat.lt_succ_iff]
-
 end Space
 
 open Cfg
@@ -266,15 +301,14 @@ lemma runFrom_output_eq_of_halt
   rw [runFrom_add, runFrom_of_halt _ hhalt]
 
 /-- A proof that the Turing machine `tm` on input `input` outputs `output` in at most `t` steps
-and uses exactly `s` space.
+and uses exactly `s` space. This is the nondeterministic notion, which for a deterministic machine
+speaks about its own run; see `computesInTimeAndSpace_iff`.
 Note that this does not require the alphabet or state set to be finite. -/
 def ComputesInTimeAndSpace
     (tm : MultiTapeTM k Symbol State)
     (input output : List Symbol)
     (t s : ℕ) : Prop :=
-  (tm.runFrom (tm.initCfg input) t).state = none ∧
-  (tm.runFrom (tm.initCfg input) t).output = output ∧
-  tm.spaceUsed (tm.initCfg input) t = s
+  tm.toMultiTapeNTM.ComputesInTimeAndSpace input output t s
 
 /-- A proof that the Turing machine `tm` computes the function `f` such that on all inputs of
 length `n` it uses at most `t n` steps and `s n` space. It assumes an embedding function
@@ -321,7 +355,7 @@ lemma relatesInSteps_iff_runFrom_eq
     (tm : MultiTapeTM k Symbol State)
     (cfg₁ cfg₂ : Cfg k Symbol State input)
     (t : ℕ) :
-    RelatesInSteps tm.TransitionRelation cfg₁ cfg₂ t ↔ tm.runFrom cfg₁ t = cfg₂ := by
+    RelatesInSteps tm.Step cfg₁ cfg₂ t ↔ tm.runFrom cfg₁ t = cfg₂ := by
   unfold runFrom
   induction t generalizing cfg₁ cfg₂ with
   | zero => simp
@@ -389,6 +423,75 @@ lemma not_halts_of_repeat_nonhalt
     rw [htΔ, tm.runFrom_add]
     simp [hnh]
   simp [hloop t', h_not_halt] at h₁
+
+section Nondeterministic
+
+/-!
+## Relation to nondeterministic machines
+
+A deterministic machine is a nondeterministic one that permits exactly one transition in every
+situation. Determinism then leaves a computation no choice, so every computation is the machine's
+own run and the two notions of computing coincide.
+-/
+
+/-- The machine's own run for `t` steps, as a computation: the configuration reached after each
+step. -/
+def computation (tm : MultiTapeTM k Symbol State) (input : List Symbol) (t : ℕ) :
+    tm.toMultiTapeNTM.Computation input where
+  length := t
+  toFun i := tm.runFrom (tm.initCfg input) i
+  step i := by
+    simp only [Fin.val_castSucc, Fin.val_succ, runFrom_succ_eq_step']
+    exact ntmStep _
+  head_eq := rfl
+
+@[simp]
+lemma computation_length : (tm.computation input t).length = t := rfl
+
+/-- Every computation is the machine's own run: after `i` steps it is at the configuration the
+machine reaches in `i` steps. -/
+lemma computation_toFun (p : tm.toMultiTapeNTM.Computation input) (i : ℕ) (hi : i < p.length + 1) :
+    p.toFun ⟨i, hi⟩ = tm.runFrom (tm.initCfg input) i := by
+  induction i with
+  | zero => simpa [RelSeries.head] using p.head_eq
+  | succ n ih =>
+    have hstep := p.toRelSeries.step ⟨n, by omega⟩
+    rw [runFrom_succ_eq_step', ← ih (by omega)]
+    exact eq_step_of_ntmStep hstep
+
+@[simp]
+lemma computation_last (p : tm.toMultiTapeNTM.Computation input) :
+    p.last = tm.runFrom (tm.initCfg input) p.length :=
+  computation_toFun p p.length (by omega)
+
+@[simp]
+lemma computation_space (p : tm.toMultiTapeNTM.Computation input) :
+    p.space = tm.spaceUsed (tm.initCfg input) p.length := by
+  unfold MultiTapeNTM.Computation.space MultiTapeNTM.Computation.visited spaceUsed spaceUsedByTape
+  refine Finset.sum_congr rfl fun i _ => congrArg Finset.card ?_
+  ext z
+  simp only [List.mem_toFinset, List.mem_map, RelSeries.toList, List.mem_ofFn, visitedByTapeHead,
+    Finset.mem_image, Finset.mem_range, Nat.lt_succ_iff, Fin.exists_iff]
+  constructor
+  · rintro ⟨_, ⟨j, hj, rfl⟩, hz⟩
+    exact ⟨j, by omega, by rwa [← computation_toFun p j (by omega)]⟩
+  · rintro ⟨a, ha, hz⟩
+    exact ⟨_, ⟨a, by omega, rfl⟩, by rwa [computation_toFun p a (by omega)]⟩
+
+/-- Since a deterministic machine has only one computation of each length, computing reduces to a
+statement about its own run: nondeterminism buys it nothing. -/
+theorem computesInTimeAndSpace_iff {output : List Symbol} {t s : ℕ} :
+    tm.ComputesInTimeAndSpace input output t s ↔
+      (tm.runFrom (tm.initCfg input) t).state = none ∧
+      (tm.runFrom (tm.initCfg input) t).output = output ∧
+      tm.spaceUsed (tm.initCfg input) t = s := by
+  refine ⟨fun ⟨p, hhalt, hout, hlen, hspace⟩ => ?_, fun h => ?_⟩
+  · subst hlen
+    exact ⟨by simpa using hhalt, by simpa using hout, by simpa using hspace⟩
+  · exact ⟨tm.computation input t, h.1, h.2.1, computation_length,
+      (computation_space _).trans h.2.2⟩
+
+end Nondeterministic
 
 end MultiTapeTM
 
