@@ -12,13 +12,41 @@ public import Cslib.Computability.Machines.Turing.MultiTape.Deterministic
 # Tape head visitation and space-usage lemmas
 
 This file collects lemmas about the set of positions visited by a work-tape head
-(`MultiTapeTM.visitedByTapeHead`) and the resulting space-usage measures
-(`MultiTapeTM.spaceUsedByTape`, `MultiTapeTM.spaceUsed`) and how the tape head positions
-influence the cells that are modified on a tape.
+(`MultiTapeNTM.Run.visited`, `MultiTapeTM.visitedByTapeHead`) and the resulting space-usage
+measures (`MultiTapeNTM.Run.spaceByTape`, `MultiTapeNTM.Run.space`, `MultiTapeTM.spaceUsedByTape`,
+`MultiTapeTM.spaceUsed`) and how the tape head positions influence the cells that are modified on
+a tape.
 
 -/
 
 @[expose] public section
+
+namespace Turing.MultiTapeNTM.Run
+
+variable {k : ℕ} {State Symbol : Type*} {input : List Symbol}
+  {ntm : MultiTapeNTM k Symbol State}
+
+/-- Consecutive configurations of a run are joined by a step. -/
+lemma isChain_toList_step (p : ntm.Run input) :
+    p.toList.IsChain (ntm.Step (input := input)) :=
+  p.toRelSeries.isChain_toList
+
+/-- A machine with no work tapes uses no space. -/
+@[simp]
+lemma space_eq_zero_of_isEmpty (p : ntm.Run input) (h : k = 0) : p.space = 0 := by
+  subst h; simp [space]
+
+/-- Each tape's space usage is bounded by the total space used. -/
+lemma spaceByTape_le_space (p : ntm.Run input) (i : Fin k) : p.spaceByTape i ≤ p.space :=
+  Finset.single_le_sum (fun _ _ => Nat.zero_le _) (Finset.mem_univ i)
+
+/-- Every configuration the run passes through is visited. -/
+lemma workTapePos_mem_visited (p : ntm.Run input) (i : Fin k) (j : Fin (p.length + 1)) :
+    (p.toFun j).workTapePos i ∈ p.visited i := by
+  simp only [visited, List.mem_toFinset, List.mem_map]
+  exact ⟨p.toFun j, RelSeries.mem_toList.mpr ⟨j, rfl⟩, rfl⟩
+
+end Turing.MultiTapeNTM.Run
 
 namespace Turing.MultiTapeTM
 

@@ -96,28 +96,34 @@ def initCfg (ntm : MultiTapeNTM k Symbol State) (input : List Symbol) :
     Cfg k Symbol State input :=
   Cfg.init ntm.q₀ input
 
-/-- A computation path of `ntm` on `input`: a series of configurations starting at the initial one,
-in which each is reached from the previous by a step. `RelSeries` supplies the series itself, so
-`length` is the number of steps taken, `toList` the configurations passed through, and `last` the
-one it ends at.
-Note that it is not required that the machine terminates at the final configuration of the path. -/
-structure ComputationPath (ntm : MultiTapeNTM k Symbol State) (input : List Symbol)
-    extends RelSeries {(c₁, c₂) : Cfg k Symbol State input × _ | ntm.Step c₁ c₂} where
-  /-- a computation starts at the initial configuration -/
-  head_eq : toRelSeries.head = ntm.initCfg input
+/-- A run of `ntm` on `input`: a series of configurations in which each is reached from the
+previous by a step. It may start anywhere; a `ComputationPath` is one that starts at the initial
+configuration. `RelSeries` supplies the series itself, so `length` is the number of steps taken,
+`toList` the configurations passed through, and `head` and `last` the ones it starts and ends at. -/
+structure Run (ntm : MultiTapeNTM k Symbol State) (input : List Symbol)
+  extends RelSeries {(c₁, c₂) : Cfg k Symbol State input × _ | ntm.Step c₁ c₂}
 
-namespace ComputationPath
+namespace Run
 
 variable {ntm : MultiTapeNTM k Symbol State} {input : List Symbol}
 
-/-- The work tape cells the head of tape `i` visits during the computation. -/
-def visited (p : ntm.ComputationPath input) (i : Fin k) : Finset ℤ :=
+/-- The work tape cells the head of tape `i` visits during the run. -/
+def visited (p : ntm.Run input) (i : Fin k) : Finset ℤ :=
   (p.toList.map (·.workTapePos i)).toFinset
 
-/-- The number of work tape cells the computation touches, its space usage. -/
-def space (p : ntm.ComputationPath input) : ℕ := ∑ i, (p.visited i).card
+/-- The number of work tape cells the head of tape `i` touches during the run. -/
+def spaceByTape (p : ntm.Run input) (i : Fin k) : ℕ := (p.visited i).card
 
-end ComputationPath
+/-- The number of work tape cells the run touches, its space usage. -/
+def space (p : ntm.Run input) : ℕ := ∑ i, p.spaceByTape i
+
+end Run
+
+/-- A computation of `ntm` on `input`: a run starting at the initial configuration. -/
+structure ComputationPath (ntm : MultiTapeNTM k Symbol State) (input : List Symbol)
+    extends Run ntm input where
+  /-- a computation starts at the initial configuration -/
+  head_eq : toRun.head = ntm.initCfg input
 
 /-- `ntm` has a computation on `input` that starts at the initial configuration, halts, emits
 `output` and satisfies `P`. The notions below are its instances, so their constraints all refer to

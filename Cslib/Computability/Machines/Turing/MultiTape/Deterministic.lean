@@ -84,12 +84,12 @@ proven to be equivalent.
 * `MultiTapeTM.runFrom`: the configuration reached after a given number of execution steps
 * `RelatesInSteps tm.Step cfg cfg' t`: a proof that `tm` transforms the configuration
     `cfg` into `cfg'` in exactly `t` steps
-* `tm.Computation input`: a run of the machine, in the nondeterministic sense
+* `tm.ComputationPath input`: a run of the machine, in the nondeterministic sense
 
 ## References
 
 * [C. Papadimitriou, *Computational Complexity*][Papadimitriou94]
-* [S. Arora, B. Barak, *Computational Complexity: A Modern Approach*][AroraBarak09]
+* [S. Arora, B. Barak, *ComputationPathal Complexity: A Modern Approach*][AroraBarak09]
 * [M. Sipser, *Introduction to the Theory of Computation*][Sipser2013]
 
 -/
@@ -434,15 +434,26 @@ situation. Determinism then leaves a computation no choice, so every computation
 own run and the two notions of computing coincide.
 -/
 
-/-- The machine's own run for `t` steps, as a computation: the configuration reached after each
-step. -/
-def computation (tm : MultiTapeTM k Symbol State) (input : List Symbol) (t : ℕ) :
-    tm.toMultiTapeNTM.Computation input where
+/-- The machine's run from `cfg` for `t` steps: the configuration reached after each step. -/
+def run (tm : MultiTapeTM k Symbol State) (cfg : Cfg k Symbol State input) (t : ℕ) :
+    tm.toMultiTapeNTM.Run input where
   length := t
-  toFun i := tm.runFrom (tm.initCfg input) i
+  toFun i := tm.runFrom cfg i
   step i := by
     simp only [Fin.val_castSucc, Fin.val_succ, runFrom_succ_eq_step']
     exact ntmStep _
+
+@[simp]
+lemma run_length (cfg : Cfg k Symbol State input) : (tm.run cfg t).length = t := rfl
+
+@[simp]
+lemma run_toFun (cfg : Cfg k Symbol State input) (i : Fin ((tm.run cfg t).length + 1)) :
+    (tm.run cfg t).toFun i = tm.runFrom cfg i := rfl
+
+/-- The machine's own run on `input`, as a computation. -/
+def computation (tm : MultiTapeTM k Symbol State) (input : List Symbol) (t : ℕ) :
+    tm.toMultiTapeNTM.ComputationPath input where
+  toRun := tm.run (tm.initCfg input) t
   head_eq := rfl
 
 @[simp]
@@ -450,7 +461,8 @@ lemma computation_length : (tm.computation input t).length = t := rfl
 
 /-- Every computation is the machine's own run: after `i` steps it is at the configuration the
 machine reaches in `i` steps. -/
-lemma computation_toFun (p : tm.toMultiTapeNTM.Computation input) (i : ℕ) (hi : i < p.length + 1) :
+lemma computation_toFun (p : tm.toMultiTapeNTM.ComputationPath input) (i : ℕ)
+    (hi : i < p.length + 1) :
     p.toFun ⟨i, hi⟩ = tm.runFrom (tm.initCfg input) i := by
   induction i with
   | zero => simpa [RelSeries.head] using p.head_eq
@@ -460,14 +472,31 @@ lemma computation_toFun (p : tm.toMultiTapeNTM.Computation input) (i : ℕ) (hi 
     exact eq_step_of_ntmStep hstep
 
 @[simp]
-lemma computation_last (p : tm.toMultiTapeNTM.Computation input) :
+lemma computation_last (p : tm.toMultiTapeNTM.ComputationPath input) :
     p.last = tm.runFrom (tm.initCfg input) p.length :=
   computation_toFun p p.length (by omega)
 
+/-- The space the machine uses in `t` steps from `cfg` is the space its run touches. This holds
+from any configuration, not only the initial one. -/
+lemma spaceUsed_eq_run_space (cfg : Cfg k Symbol State input) (t : ℕ) :
+    tm.spaceUsed cfg t = (tm.run cfg t).space := by
+  unfold MultiTapeNTM.Run.space MultiTapeNTM.Run.spaceByTape MultiTapeNTM.Run.visited
+    spaceUsed spaceUsedByTape
+  refine Finset.sum_congr rfl fun i _ => congrArg Finset.card ?_
+  ext z
+  simp only [visitedByTapeHead, Finset.mem_image, Finset.mem_range, Nat.lt_succ_iff,
+    List.mem_toFinset, List.mem_map, RelSeries.mem_toList, RelSeries.mem_def, run_length]
+  constructor
+  · rintro ⟨a, ha, hz⟩
+    exact ⟨_, ⟨⟨a, by omega⟩, rfl⟩, hz⟩
+  · rintro ⟨_, ⟨j, rfl⟩, hz⟩
+    exact ⟨j, Nat.lt_succ_iff.mp j.isLt, hz⟩
+
 @[simp]
-lemma computation_space (p : tm.toMultiTapeNTM.Computation input) :
+lemma computation_space (p : tm.toMultiTapeNTM.ComputationPath input) :
     p.space = tm.spaceUsed (tm.initCfg input) p.length := by
-  unfold MultiTapeNTM.Computation.space MultiTapeNTM.Computation.visited spaceUsed spaceUsedByTape
+  unfold MultiTapeNTM.Run.space MultiTapeNTM.Run.spaceByTape MultiTapeNTM.Run.visited
+    spaceUsed spaceUsedByTape
   refine Finset.sum_congr rfl fun i _ => congrArg Finset.card ?_
   ext z
   simp only [List.mem_toFinset, List.mem_map, RelSeries.toList, List.mem_ofFn, visitedByTapeHead,
