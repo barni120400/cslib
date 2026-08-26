@@ -51,30 +51,43 @@ configuration too, where both models idle. -/
 theorem toNTM_step (c : Cfg k Symbol State input) : tm.toNTM.Step c (tm.step c) := by
   cases hq : c.state <;> simp [MultiTapeNTM.Step, step, toNTM, hq]
 
+/-- The configurations the machine passes through form a chain of steps. -/
+lemma isChain_map_range (cfg : Cfg k Symbol State input) (t : ℕ) :
+    ((List.range (t + 1)).map (tm.runFrom cfg)).IsChain tm.toNTM.Step := by
+  rw [List.isChain_iff_getElem]
+  intro i hi
+  simp only [List.getElem_map, List.getElem_range]
+  rw [runFrom_succ_eq_step']
+  exact toNTM_step _
+
 /-- The machine's own run for `t` steps, as a computation of its nondeterministic reading: the
 configuration reached after each step. -/
 def toNTMComputationPath (tm : MultiTapeTM k Symbol State) (input : List Symbol) (t : ℕ) :
     tm.toNTM.ComputationPath input where
-  length := t
-  toFun i := tm.runFrom (tm.initCfg input) i
-  step i := by
-    simp only [Fin.val_castSucc, Fin.val_succ, runFrom_succ_eq_step']
-    exact toNTM_step _
-  head_eq := rfl
+  cfgs := (List.range (t + 1)).map (tm.runFrom (tm.initCfg input))
+  last := tm.runFrom (tm.initCfg input) t
+  isChainFromTo :=
+    { isChain := isChain_map_range _ t
+      ne_nil := by simp
+      head_eq := by
+        rw [List.head_map]
+        simp [toNTM]
+      getLast_eq := by
+        rw [← Option.some_inj, ← List.getLast?_eq_some_getLast, List.range_succ, List.map_append]
+        simp }
 
 @[simp]
-lemma toNTMComputationPath_length : (tm.toNTMComputationPath input t).length = t := rfl
+lemma toNTMComputationPath_time : (tm.toNTMComputationPath input t).time = t := by
+  simp [MultiTapeNTM.ComputationPath.time, toNTMComputationPath]
 
 @[simp]
 lemma toNTMComputationPath_last :
     (tm.toNTMComputationPath input t).last = tm.runFrom (tm.initCfg input) t := rfl
 
 @[simp]
-lemma toNTMComputationPath_toList :
-    (tm.toNTMComputationPath input t).toList
-      = (List.range (t + 1)).map (tm.runFrom (tm.initCfg input)) := by
-  rw [RelSeries.toList, ← List.map_coe_finRange_eq_range, List.map_map]
-  exact List.ofFn_eq_map
+lemma toNTMComputationPath_cfgs :
+    (tm.toNTMComputationPath input t).cfgs
+      = (List.range (t + 1)).map (tm.runFrom (tm.initCfg input)) := rfl
 
 @[simp]
 lemma toNTMComputationPath_space :
@@ -86,8 +99,8 @@ run. -/
 theorem toNTM_computes {output : List Symbol} {t s : ℕ}
     (h : tm.ComputesInTimeAndSpace input output t s) :
     tm.toNTM.ComputesInTimeAndSpace input output t s :=
-  ⟨tm.toNTMComputationPath input t, h.1, h.2.1, toNTMComputationPath_length,
-    toNTMComputationPath_space.trans h.2.2⟩
+  ⟨tm.toNTMComputationPath input t, by simpa using h.1, by simpa using h.2.1,
+    toNTMComputationPath_time, toNTMComputationPath_space.trans h.2.2⟩
 
 end MultiTapeTM
 

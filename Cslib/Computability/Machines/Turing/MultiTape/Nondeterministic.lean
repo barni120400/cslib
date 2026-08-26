@@ -7,7 +7,7 @@ Authors: Aviv Bar Natan
 module
 
 public import Mathlib.Data.List.Chain
-public import Mathlib.Order.RelSeries
+public import Cslib.Foundations.Data.List.IsChainFromTo
 public import Cslib.Computability.Machines.Turing.MultiTape.Configuration
 
 /-!
@@ -88,22 +88,25 @@ def initCfg (ntm : MultiTapeNTM k Symbol State) (input : List Symbol) :
     Cfg k Symbol State input :=
   Cfg.init ntm.q₀ input
 
-/-- A computation path of `ntm` on `input`: a series of configurations starting at the initial one,
-in which each is reached from the previous by a step. `RelSeries` supplies the series itself, so
-`length` is the number of steps taken, `toList` the configurations passed through, and `last` the
-one it ends at.
-Note that it is not required that the machine terminates at the final configuration of the path. -/
-structure ComputationPath (ntm : MultiTapeNTM k Symbol State) (input : List Symbol)
-    extends RelSeries {(c₁, c₂) : Cfg k Symbol State input × _ | ntm.Step c₁ c₂} where
-  /-- a computation starts at the initial configuration -/
-  head_eq : toRelSeries.head = ntm.initCfg input
+/-- A computation path of `ntm` on `input`: the configurations it passes through, forming a chain
+of steps from the initial configuration to the one it ends at. -/
+structure ComputationPath (ntm : MultiTapeNTM k Symbol State) (input : List Symbol) where
+  /-- the configurations passed through, starting with the initial one -/
+  cfgs : List (Cfg k Symbol State input)
+  /-- the configuration the path ends at -/
+  last : Cfg k Symbol State input
+  /-- consecutive configurations are joined by a step, from the initial configuration to `last` -/
+  isChainFromTo : cfgs.IsChainFromTo ntm.Step (ntm.initCfg input) last
 
 namespace ComputationPath
 
 variable {ntm : MultiTapeNTM k Symbol State} {input : List Symbol}
 
+/-- The number of steps taken, the time the computation takes. -/
+def time (p : ntm.ComputationPath input) : ℕ := p.cfgs.length - 1
+
 /-- The number of work tape cells touched. -/
-def space (p : ntm.ComputationPath input) : ℕ := spaceUsedOfCfgs p.toList
+def space (p : ntm.ComputationPath input) : ℕ := spaceUsedOfCfgs p.cfgs
 
 end ComputationPath
 
@@ -121,7 +124,7 @@ def Computes (ntm : MultiTapeNTM k Symbol State) (input output : List Symbol) : 
 /-- `ntm` computes `output` from `input` in exactly `t` steps. -/
 def ComputesInTime (ntm : MultiTapeNTM k Symbol State) (input output : List Symbol) (t : ℕ) :
     Prop :=
-  ntm.ComputesSuchThat input output fun p => p.length = t
+  ntm.ComputesSuchThat input output fun p => p.time = t
 
 /-- `ntm` computes `output` from `input` touching exactly `s` work tape cells. -/
 def ComputesInSpace (ntm : MultiTapeNTM k Symbol State) (input output : List Symbol) (s : ℕ) :
@@ -132,7 +135,7 @@ def ComputesInSpace (ntm : MultiTapeNTM k Symbol State) (input output : List Sym
 computation. Nondeterministic analogue of `MultiTapeTM.ComputesInTimeAndSpace`. -/
 def ComputesInTimeAndSpace (ntm : MultiTapeNTM k Symbol State) (input output : List Symbol)
     (t s : ℕ) : Prop :=
-  ntm.ComputesSuchThat input output fun p => p.length = t ∧ p.space = s
+  ntm.ComputesSuchThat input output fun p => p.time = t ∧ p.space = s
 
 end MultiTapeNTM
 
