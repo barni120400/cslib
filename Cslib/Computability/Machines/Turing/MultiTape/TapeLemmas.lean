@@ -1,12 +1,12 @@
 /-
 Copyright (c) 2026 Christian Reitwiessner. All rights reserved.
 Released under Apache 2.0 license as described in the file LICENSE.
-Authors: Christian Reitwiessner
+Authors: Christian Reitwiessner, Aviv Bar Natan
 -/
 
 module
 
-public import Cslib.Computability.Machines.Turing.MultiTape.Deterministic
+public import Cslib.Computability.Machines.Turing.MultiTape.DeterministicToNondeterministic
 public import Mathlib.Data.Int.Interval
 public import Mathlib.Order.Lattice.Nat
 
@@ -18,6 +18,9 @@ This file collects lemmas about the set of positions visited by a work-tape head
 (`MultiTapeTM.spaceUsedByTape`, `MultiTapeTM.spaceUsed`) and how the tape head positions
 influence the cells that are modified on a tape.
 
+The one-step results are stated for `MultiTapeNTM.Step` and apply to deterministic steps through
+`MultiTapeTM.toNTM_step`.
+
 `MultiTapeTM.exists_spaceUsedByTape_max` shows that a computation whose space usage is bounded
 attains its per-tape space usage at a single step, which makes a bound that holds at every point
 in time usable as a bound for the whole run.
@@ -26,6 +29,33 @@ in time usable as a bound for the whole run.
 
 @[expose] public section
 
+namespace Turing.MultiTapeNTM
+
+variable {k : ℕ} {State Symbol : Type*} {input : List Symbol}
+variable {ntm : MultiTapeNTM k Symbol State}
+
+/-- A work tape head moves by at most one cell in a step. -/
+lemma Step.workTapePos_le {c c' : Cfg k Symbol State input} (h : ntm.Step c c') (i : Fin k) :
+    |c'.workTapePos i - c.workTapePos i| ≤ 1 := by
+  cases hs : c.state with
+  | none => obtain rfl := (step_of_halt hs).mp h; simp
+  | some q =>
+    simp only [Step, hs] at h
+    obtain ⟨action, _, rfl⟩ := h
+    exact workTapePos_apply_le action c i
+
+/-- A step preserves every work tape cell away from its head. -/
+lemma Step.workTapes_eq_of_ne {c c' : Cfg k Symbol State input} (h : ntm.Step c c')
+    (i : Fin k) (z : ℤ) (hz : z ≠ c.workTapePos i) : c'.workTapes i z = c.workTapes i z := by
+  cases hs : c.state with
+  | none => obtain rfl := (step_of_halt hs).mp h; rfl
+  | some q =>
+    simp only [Step, hs] at h
+    obtain ⟨action, _, rfl⟩ := h
+    cases hwrite : (action.workTapes i).1 <;> simp [Action.apply, hwrite, hz]
+
+end Turing.MultiTapeNTM
+
 namespace Turing.MultiTapeTM
 
 variable {k : ℕ}
@@ -33,19 +63,6 @@ variable {State Symbol : Type*}
 variable {input : List Symbol}
 variable {tm : MultiTapeTM k Symbol State}
 variable {cfg : Cfg k Symbol State input}
-
-/-- If the work tape head is not at position `z`, then the tape does not change there. -/
-lemma step_workTapes_eq_of_ne
-    (cfg : Cfg k Symbol State input)
-    (j : Fin k)
-    (z : ℤ)
-    (hz : z ≠ cfg.workTapePos j) :
-    (tm.step cfg).workTapes j z = cfg.workTapes j z := by
-  unfold step
-  cases hst : cfg.state with
-  | none => simp_all
-  | some q =>
-    rcases hw : ((tm.tr q cfg.inputSymbol cfg.workTapeSymbols).workTapes j).1 <;> simp_all
 
 lemma mem_visitedByTapeHead {t : ℕ} {i : Fin k} {z : ℤ} :
     z ∈ tm.visitedByTapeHead cfg t i ↔ ∃ t' < t + 1, (tm.runFrom cfg t').workTapePos i = z := by
@@ -74,7 +91,7 @@ lemma uIcc_workTapePos_subset_visitedByTapeHead
     have hstep :
         |(tm.runFrom cfg (t + 1)).workTapePos i - (tm.runFrom cfg t).workTapePos i| ≤ 1 := by
       simpa only [runFrom, Function.iterate_succ_apply'] using
-        tm.workTapePos_step_le (tm.runFrom cfg t) i
+        (tm.toNTM_step (tm.runFrom cfg t)).workTapePos_le i
     have hmono := tm.visitedByTapeHead_mono cfg i (Nat.le_succ t)
     have hself := tm.mem_visitedByTapeHead_self cfg (t + 1) i
     grind [Finset.mem_uIcc]
@@ -93,7 +110,7 @@ lemma mem_visitedByTapeHead_of_workTapes_ne
     by_cases hz : z = (tm.runFrom cfg t).workTapePos j
     · exact hz ▸ tm.visitedByTapeHead_mono cfg j (Nat.le_succ t)
         (tm.mem_visitedByTapeHead_self cfg t j)
-    · rw [tm.step_workTapes_eq_of_ne _ j z hz] at h
+    · rw [(tm.toNTM_step (tm.runFrom cfg t)).workTapes_eq_of_ne j z hz] at h
       exact tm.visitedByTapeHead_mono cfg j (Nat.le_succ t) (ih h)
 
 /-- Every position visited by the head of tape `i` lies within `spaceUsedByTape … i` of the
