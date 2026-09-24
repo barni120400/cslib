@@ -40,6 +40,8 @@ witness.
 * `Computes`, `ComputesInExactTime`, `ComputesInExactSpace`, `ComputesInExactTimeAndSpace`:
     its instances, whose
     bounds all refer to a single computation
+* `ComputesFunInTimeAndSpace`: computation of an encoded function within input-indexed bounds
+* `ComputableInTimeAndSpace`: existence of a machine satisfying the bounds and an optional predicate
 
 ## References
 
@@ -150,10 +152,53 @@ def ComputesInExactSpace (ntm : MultiTapeNTM k Symbol State) (input output : Lis
   ntm.ComputesSuchThat input output fun p => p.space = s
 
 /-- `ntm` computes `output` from `input` in `t` steps and `s` work tape cells, by a single
-computation. Nondeterministic analogue of `MultiTapeTM.ComputesInTimeAndSpace`. -/
+computation. -/
 def ComputesInExactTimeAndSpace (ntm : MultiTapeNTM k Symbol State) (input output : List Symbol)
     (t s : ℕ) : Prop :=
   ntm.ComputesSuchThat input output fun p => p.time = t ∧ p.space = s
+
+/-- A compatibility spelling for computation with exact path length and space usage. Halting
+configurations can be repeated to pad the path length. -/
+abbrev ComputesInTimeAndSpace := @ComputesInExactTimeAndSpace
+
+/-- A machine computes `f` between the supplied encodings, within input-indexed bounds.
+For a nondeterministic machine this asks for one successful path for each input. -/
+def ComputesFunInTimeAndSpace {α β : Type*}
+    (ntm : MultiTapeNTM k Symbol State)
+    (encIn : α ↪ List Symbol) (encOut : β ↪ List Symbol)
+    (f : α → β) (t s : α → ℕ) : Prop :=
+  ∀ a, ∃ t' ≤ t a, ∃ s' ≤ s a,
+    ntm.ComputesInExactTimeAndSpace (encIn a) (encOut (f a)) t' s'
+
+/-- Resource bounds can be weakened independently on every input. -/
+theorem ComputesFunInTimeAndSpace.mono {α β : Type*}
+    {ntm : MultiTapeNTM k Symbol State} {encIn : α ↪ List Symbol} {encOut : β ↪ List Symbol}
+    {f : α → β} {t s t' s' : α → ℕ}
+    (h : ntm.ComputesFunInTimeAndSpace encIn encOut f t s)
+    (ht : ∀ a, t a ≤ t' a) (hs : ∀ a, s a ≤ s' a) :
+    ntm.ComputesFunInTimeAndSpace encIn encOut f t' s' := fun a => by
+  obtain ⟨u, hu, v, hv, hc⟩ := h a
+  exact ⟨u, hu.trans (ht a), v, hv.trans (hs a), hc⟩
+
+/-- A function is computable within the input-indexed bounds by a binary machine with finitely
+many states. `P` optionally restricts the witnessing machine; by default every machine is
+allowed. -/
+def ComputableInTimeAndSpace {α β : Type*}
+    (f : α → β) (encIn : α ↪ List Bool) (encOut : β ↪ List Bool) (t s : α → ℕ)
+    (P : ∀ {k : ℕ} {State : Type}, MultiTapeNTM k Bool State → Prop := fun _ => True) :
+    Prop :=
+  ∃ (k : ℕ) (State : Type) (_ : Finite State) (ntm : MultiTapeNTM k Bool State),
+    P ntm ∧ ntm.ComputesFunInTimeAndSpace encIn encOut f t s
+
+/-- Computability is monotone in the resource bounds. -/
+theorem ComputableInTimeAndSpace.mono {α β : Type*}
+    {f : α → β} {encIn : α ↪ List Bool} {encOut : β ↪ List Bool} {t s t' s' : α → ℕ}
+    {P : ∀ {k : ℕ} {State : Type}, MultiTapeNTM k Bool State → Prop}
+    (h : ComputableInTimeAndSpace f encIn encOut t s P)
+    (ht : ∀ a, t a ≤ t' a) (hs : ∀ a, s a ≤ s' a) :
+    ComputableInTimeAndSpace f encIn encOut t' s' P := by
+  obtain ⟨k, State, hfinite, ntm, hP, htm⟩ := h
+  exact ⟨k, State, hfinite, ntm, hP, htm.mono ht hs⟩
 
 end MultiTapeNTM
 
