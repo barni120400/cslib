@@ -13,7 +13,6 @@ public import Mathlib.Data.Fintype.Prod
 public import Mathlib.Data.Fintype.Option
 public import Mathlib.Data.Set.Card
 public import Mathlib.Order.Lattice.Nat
-public import Mathlib.Algebra.Order.BigOperators.GroupWithZero.Finset
 public import Mathlib.Tactic.Ring
 
 /-!
@@ -270,8 +269,13 @@ lemma core_step_eq_of_core_eq {c₁ c₂ : Cfg k Symbol State input} (h : c₁.c
   have hws : c₁.workTapeSymbols = c₂.workTapeSymbols := by
     funext i
     simp [Cfg.workTapeSymbols, hwt, hwp]
-  simp only [Cfg.core, Cfg.storage, MultiTapeTM.step, hstate, hsym, hws]
-  cases c₂.state <;> simp [hpos, hstate, hwt, hwp]
+  cases hq : c₂.state with
+  | none =>
+    rw [MultiTapeTM.step_of_halt (hstate.trans hq), MultiTapeTM.step_of_halt hq]
+    simp [Cfg.core, Cfg.storage, hpos, hstate, hwt, hwp]
+  | some q =>
+    rw [MultiTapeTM.step_of_state (hstate.trans hq), MultiTapeTM.step_of_state hq]
+    simp [Cfg.core, Cfg.storage, hpos, hwt, hwp, hsym, hws]
 
 /-! ## The storages and cores of a space-bounded run
 
