@@ -18,7 +18,7 @@ public import Cslib.Computability.Machines.Turing.MultiTape.Nondeterministic
 A deterministic Turing machine is a nondeterministic machine with exactly one permitted action
 in every non-halting configuration. It inherits the initial configuration and computation
 predicates, with a derived transition function `tr` and step function `step`. The function `step`
-returns the unique successor allowed by the relation `Step`; a halted configuration steps to itself.
+returns the unique successor allowed by the relation `Step`. A halted configuration steps to itself.
 
 ## Important Declarations
 
@@ -27,12 +27,8 @@ We define a number of structures and concepts related to multi-tape Turing machi
 * `MultiTapeNTM.IsDeterministic`: every state and tuple of read symbols permits exactly one action
 * `MultiTapeTM`: the TM itself
 * `tr`, `ofTr`: the derived transition function and construction from a function
-* `Step`: the inherited one-step relation on configurations
 * `step`, `runFrom`: the successor configuration and iteration of this function
 * `spaceUsed`: the number of tape cells touched by work tape heads, our main space measure
-* `MultiTapeNTM.ComputesInExactTimeAndSpace`: the shared computation predicate
-* `MultiTapeNTM.ComputesFunInTimeAndSpace`: computation of an encoded function within
-    resource bounds
 * `ComputableInTimeAndSpace`: such a machine exists with binary alphabet and finitely many states.
 * `ComputableInTimeAndSpaceOfLength`: the specialization to bounds on encoded input length.
 * `DecidableInTimeAndSpace`: a proof that a TM decides a language within a certain time

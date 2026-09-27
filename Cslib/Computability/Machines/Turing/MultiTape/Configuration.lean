@@ -23,10 +23,9 @@ write-only output tape, together with what a single transition does to a configu
 
 ## Design
 
-Nothing here mentions a machine. A step is described in two parts: an `Action`, recording
+Nothing here mentions a machine. A step is described in two parts. An `Action` records
 which way the input head moves, what is written and where the work heads move, which symbol is
-emitted and which state follows; and `Action.apply`, which carries it out on a
-configuration.
+emitted and which state follows. `Action.apply` carries out the action on a configuration.
 
 The output tape is part of the configuration, so the string emitted along a run can be read off
 the configuration the run ends in. An action can optionally output one symbol, which models the

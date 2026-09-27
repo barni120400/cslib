@@ -73,7 +73,7 @@ namespace MultiTapeNTM
 
 variable {ntm : MultiTapeNTM k Symbol State}
 
-/-- The one-step relation on configurations. A halted configuration steps to itself; a running one
+/-- The one-step relation on configurations. A halted configuration steps to itself. A running one
 steps by any permitted transition. -/
 @[scoped grind =]
 def Step (ntm : MultiTapeNTM k Symbol State) (c₁ c₂ : Cfg k Symbol State input) : Prop :=
@@ -178,7 +178,8 @@ def ComputesInExactTimeAndSpace (ntm : MultiTapeNTM k Symbol State) (input outpu
   ntm.ComputesSuchThat input output fun p => p.time = t ∧ p.space = s
 
 /-- A machine computes `f` between the supplied encodings, within input-indexed bounds.
-For a nondeterministic machine this asks for one successful path for each input. -/
+For each input, this requires the existence of a computation path producing the encoded result
+within the supplied time and space bounds. -/
 def ComputesFunInTimeAndSpace {α β : Type*}
     (ntm : MultiTapeNTM k Symbol State)
     (encIn : α ↪ List Symbol) (encOut : β ↪ List Symbol)
@@ -197,7 +198,7 @@ theorem ComputesFunInTimeAndSpace.mono {α β : Type*}
   exact ⟨u, hu.trans (ht a), v, hv.trans (hs a), hc⟩
 
 /-- A function is computable within the input-indexed bounds by a binary machine with finitely
-many states. `P` optionally restricts the witnessing machine; by default every machine is
+many states. `P` optionally restricts the witnessing machine. By default, every machine is
 allowed. -/
 def ComputableInTimeAndSpace {α β : Type*}
     (f : α → β) (encIn : α ↪ List Bool) (encOut : β ↪ List Bool) (t s : α → ℕ)
