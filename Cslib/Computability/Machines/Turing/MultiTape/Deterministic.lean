@@ -209,6 +209,20 @@ lemma spaceUsedByTape_le_spaceUsed (cfg : Cfg k Symbol State input) (t : ℕ) (i
 
 end Space
 
+/-- A run from the initial configuration that has halted with the given output witnesses
+computation in the same time and space. -/
+lemma computesInExactTimeAndSpace_of_runFrom {input output : List Symbol} {t s : ℕ}
+    (hhalt : (tm.runFrom (tm.initCfg input) t).Halted)
+    (hout : (tm.runFrom (tm.initCfg input) t).output = output)
+    (hspace : tm.spaceUsed (tm.initCfg input) t = s) :
+    tm.ComputesInExactTimeAndSpace input output t s := by
+  let p : tm.ComputationPath input :=
+    { length := t
+      toFun n := tm.runFrom (tm.initCfg input) n
+      step n := by simp [runFrom, Function.iterate_succ_apply']
+      head_eq := rfl }
+  exact ⟨p, hhalt, hout, rfl, hspace⟩
+
 /-- Computability by a deterministic binary machine with finitely many states, within the supplied
 input-indexed bounds. This specializes nondeterministic computability to deterministic witnesses. -/
 abbrev ComputableInTimeAndSpace {α β : Type*}

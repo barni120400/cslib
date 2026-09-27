@@ -334,16 +334,9 @@ lemma computesFunInTimeAndSpace_almostConstTM (h : ∀ a ∉ S, encOut (f a) = o
   · change j + 1 + ((encOut (f a)).length + 1) ≤ almostConstTime encIn encOut f S out
     rw [almostConstTime]
     omega
-  · let tm := almostConstTM encIn encOut f S out
-    let p : tm.ComputationPath (encIn a) :=
-      { length := j + 1 + ((encOut (f a)).length + 1)
-        toFun n := tm.runFrom (tm.initCfg (encIn a)) n
-        step n := by simp [runFrom, Function.iterate_succ_apply']
-        head_eq := rfl }
-    refine ⟨p, ?_, ?_, rfl, by simp [MultiTapeNTM.ComputationPath.space,
-      MultiTapeNTM.RunPath.space]⟩ <;>
-      dsimp only [p, RelSeries.last, Fin.last] <;>
-      simp only [runFrom] at hrun ⊢ <;>
+  · refine computesInExactTimeAndSpace_of_runFrom ?_ ?_ (by simp)
+    all_goals
+      simp only [runFrom] at hrun ⊢
       rw [Nat.add_comm (j + 1), Function.iterate_add_apply, hrun, ← runFrom, runFrom_write_halted]
     rfl
 

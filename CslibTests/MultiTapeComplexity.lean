@@ -22,21 +22,11 @@ private lemma constant_computable :
   refine ⟨0, Unit, inferInstance, (finish 0 true).toMultiTapeNTM,
     (finish 0 true).deterministic, fun b => ⟨1, ?_, 0, le_rfl, ?_⟩⟩
   · cases b <;> decide
-  · let p : (finish 0 true).ComputationPath (bit b) :=
-      { length := 1
-        toFun n := (finish 0 true).runFrom ((finish 0 true).initCfg (bit b)) n
-        step n := by simp [runFrom]
-        head_eq := rfl }
-    have hstep := step_of_state (tm := finish 0 true) (input := bit b)
-      (cfg := (finish 0 true).initCfg (bit b)) rfl
-    refine ⟨p, ?_, ?_, rfl, ?_⟩
-    · change ((finish 0 true).step ((finish 0 true).initCfg (bit b))).Halted
-      rw [hstep]
+  · refine computesInExactTimeAndSpace_of_runFrom ?_ ?_ (by simp)
+    · rw [runFrom, Function.iterate_one, step_of_state rfl]
       simp [finish, Turing.Cfg.Halted]
-    · change ((finish 0 true).step ((finish 0 true).initCfg (bit b))).output = [true]
-      rw [hstep]
-      simp [finish]
-    · simp [Turing.MultiTapeNTM.ComputationPath.space, Turing.MultiTapeNTM.RunPath.space]
+    · rw [runFrom, Function.iterate_one, step_of_state rfl]
+      simp [finish]; rfl
 
 -- A theorem about nondeterministic steps applies directly to a deterministic machine.
 example {tm : Turing.MultiTapeTM k Symbol State} {input : List Symbol}
