@@ -8,6 +8,7 @@ module
 
 public import Mathlib.Data.List.Infix
 public import Cslib.Computability.Machines.Turing.MultiTape.Deterministic
+import Mathlib.Basic.Finite.Sum
 
 /-!
 # Complexity of Almost Constant Functions

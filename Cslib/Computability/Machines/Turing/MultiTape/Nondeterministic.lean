@@ -46,6 +46,7 @@ witness.
 ## References
 
 * [C. Papadimitriou, *Computational Complexity*][Papadimitriou94]
+* [S. Arora, B. Barak, *Computational Complexity: A Modern Approach*][AroraBarak09]
 * [M. Sipser, *Introduction to the Theory of Computation*][Sipser2013]
 -/
 
@@ -100,6 +101,25 @@ namespace RunPath
 
 /-- The number of steps taken by a run path. -/
 def time (p : ntm.RunPath input) : ℕ := p.length
+
+/-!
+## Space usage
+
+The input tape is read-only with bounded head movement, and the output tape is write-only, so we
+ignore both for space usage. The space usage is defined as the total number of cells the work tape
+heads visited along a run path.
+
+Instead of considering the cells _visited_ by the work tape heads, some textbooks
+(including [AroraBarak09]) only consider the number of cells that contain
+a non-blank symbol at some point in the execution or the number of cells written to. This allows
+work tape heads to freely move at no cost as long as they do not write. It is
+important to note that this causes `DSPACE(1)` to include `DSPACE(log log n)`, a class that
+contains e.g. the non-regular language `{0^n 1^n | n ∈ ℕ}` (it is accepted by a TM that writes a
+single marker on the work tape and then counts the number of symbols by work tape head movement
+without writing).
+Defining space usage via "cells visited" thus yields the more fine-grained "complexity world" in
+which `DSPACE(1)` is exactly the class of regular languages.
+-/
 
 /-- The set of positions visited by the head of work tape `i` along a run path. -/
 def visitedByTapeHead (p : ntm.RunPath input) (i : Fin k) : Finset ℤ :=
@@ -156,10 +176,6 @@ computation. -/
 def ComputesInExactTimeAndSpace (ntm : MultiTapeNTM k Symbol State) (input output : List Symbol)
     (t s : ℕ) : Prop :=
   ntm.ComputesSuchThat input output fun p => p.time = t ∧ p.space = s
-
-/-- A compatibility spelling for computation with exact path length and space usage. Halting
-configurations can be repeated to pad the path length. -/
-abbrev ComputesInTimeAndSpace := @ComputesInExactTimeAndSpace
 
 /-- A machine computes `f` between the supplied encodings, within input-indexed bounds.
 For a nondeterministic machine this asks for one successful path for each input. -/
