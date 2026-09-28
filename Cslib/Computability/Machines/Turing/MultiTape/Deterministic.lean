@@ -181,14 +181,6 @@ lemma outputSymbol_of_halt {cfg : Cfg k Symbol State input} (h_halt : cfg.state 
     tm.outputSymbol cfg = none := by
   simp [outputSymbol, h_halt]
 
-/-- The work-tape head moves by at most one cell in a single step. -/
-lemma workTapePos_step_le (c : Cfg k Symbol State input) (i : Fin k) :
-    |(tm.step c).workTapePos i - c.workTapePos i| ≤ 1 := by
-  unfold step
-  cases hstate : c.state with
-  | none => simp
-  | some q => exact workTapePos_apply_le _ c i
-
 end Cfg
 
 section Space
