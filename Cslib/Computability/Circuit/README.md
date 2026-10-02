@@ -41,33 +41,68 @@ selected outputs, so unused gates do not increase circuit depth.
 Import `Cslib.Computability.Circuit.Algebraic.Basic` for the definition:
 
 ```lean
-AlgebraicCircuit R inputCount outputCount
--- abbreviates Circuit (Algebraic.signature R) inputCount outputCount
+AlgebraicCircuit K inputCount outputCount -- assumes [Field K]
+-- abbreviates Circuit (Algebraic.signature K) inputCount outputCount
 ```
 
-The basis has `Algebraic.Op.const r`, `.add`, and `.mul`. Constants have arity zero; addition and
-multiplication have arity two. `Algebraic.interpretation R` supplies the usual arithmetic
-operations. The syntax works for any coefficient type, and evaluation requires `Add R` and
-`Mul R`. The ordinary algebraic setting is a commutative semiring, including rings and fields.
-There are no primitive subtraction or division gates; over a ring, negation can be expressed
-using the constant `-1` and multiplication.
+The basis has `Algebraic.Op.const k`, `.add`, and `.mul`. Constants have arity zero; addition and
+multiplication have arity two. `Algebraic.interpretation K` supplies arithmetic in the field `K`.
+The underlying `Op` and `signature` do not depend on the field laws. There are no primitive
+subtraction or division gates; negation can be expressed using `-1` and multiplication.
 
 The abbreviation uses the existing circuit representation, so wiring, composition, size, depth,
-and the generic semantics apply directly. The operation type is finite when `R` is finite;
+and the generic semantics apply directly. The operation type is finite when `K` is finite;
 unrestricted constants over an infinite coefficient type do not form a finite gate basis.
 
 Import `Cslib.Computability.Circuit.Algebraic.Polynomial` for formal polynomial semantics:
 
 ```lean
-c.polynomials output : MvPolynomial (Fin inputCount) R
+c.polynomials output : MvPolynomial (Fin inputCount) K
 ```
 
 `c.polynomials` runs the same circuit with constant gates interpreted by `MvPolynomial.C` and
 inputs by `MvPolynomial.X`. `Algebraic.evalHomomorphism` connects this interpretation to ordinary
 arithmetic. The generic `Circuit.map_eval` then proves `AlgebraicCircuit.eval_polynomials`:
-evaluating each output polynomial at `x` agrees with `c.eval (Algebraic.interpretation R) x`.
+evaluating each output polynomial at `x` agrees with `c.eval (Algebraic.interpretation K) x`.
 
 Formal polynomial equality is stronger than equality as functions over finite fields. Use
 `polynomials` for the former and the generic `Computes` API for the latter. Examples exercising
 constants, shared gates, multiple outputs, and composition are in
 [`CslibTests/AlgebraicCircuits.lean`](../../../CslibTests/AlgebraicCircuits.lean).
+
+## Fan-in terminology
+
+The number of inputs to a gate is its **fan-in**. Bounded fan-in means a fixed constant bound;
+the usual binary basis has bound two. Unbounded fan-in permits arbitrary finite arities.
+
+| Model | Binary basis | Unbounded fan-in basis |
+| --- | --- | --- |
+| Arithmetic (algebraic) | Field constants, binary `+` and `×` | Field constants, sums and products of arbitrary finite arity |
+| Boolean | Constants, unary NOT, binary AND and OR (De Morgan basis) | Constants, unary NOT, AND and OR of arbitrary finite arity |
+
+For arithmetic circuits, see [Shpilka and Yehudayoff, Section 1.1][SY10]. For Boolean circuits,
+compare [Oliveira's binary definition][BooleanBinary] with [Blais's unbounded definition][BooleanUnbounded].
+Fan-out describes reuse of a result; restricting it to one yields the formula model.
+
+The current Boolean and algebraic signatures are binary. An unbounded variant fits the existing
+`Signature` API by indexing sum/product or AND/OR symbols by their arity. Such a basis is infinite
+even over a finite field, so the existing finite-basis counting theorems would need further bounds.
+Size conventions also matter: CSLib counts operation gates, whereas [SY10] counts edges.
+
+## A first synthesis result
+
+Import `Cslib.Computability.Circuit.Algebraic.Synthesis` for
+`AlgebraicCircuit.exists_polynomial`: every `p : MvPolynomial (Fin n) K` has a circuit
+`c : AlgebraicCircuit K n 1` with `c.polynomials 0 = p`.
+`AlgebraicCircuit.exists_circuit` then states that `c` computes `fun x ↦ MvPolynomial.eval x p`.
+
+This parallels the existence of circuits for Boolean functions in `Boolean.LupanovConstruction`
+and `Boolean.Lupanov`, without their quantitative size bounds. The proof uses the same generic
+`Synthesis` layer, applying polynomial induction to constants, sums, and products by variables.
+Together with `computes_polynomials`, it characterizes the functions computed by algebraic
+circuits as polynomial functions. It does not assert that every function on an arbitrary field
+is polynomial.
+
+[SY10]: https://www.cs.tau.ac.il/~shpilka/publications/SY10.pdf
+[BooleanBinary]: https://cs.uwaterloo.ca/~r5olivei/courses/2024-fall-cs360/lecture-notes/lecture08/
+[BooleanUnbounded]: https://cs.uwaterloo.ca/~eblais/cs365/w25/circuits

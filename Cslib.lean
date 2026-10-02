@@ -36,6 +36,7 @@ public import Cslib.Computability.Automata.TwoWayNA.ComplToNA
 public import Cslib.Computability.Automata.TwoWayNA.OfNA
 public import Cslib.Computability.Circuit.Algebraic.Basic
 public import Cslib.Computability.Circuit.Algebraic.Polynomial
+public import Cslib.Computability.Circuit.Algebraic.Synthesis
 public import Cslib.Computability.Circuit.Basic
 public import Cslib.Computability.Circuit.Boolean.Basic
 public import Cslib.Computability.Circuit.Boolean.Counting
