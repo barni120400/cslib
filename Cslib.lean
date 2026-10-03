@@ -74,10 +74,13 @@ public import Cslib.Computability.Machines.Turing.MultiTape.Combinators.AlmostCo
 public import Cslib.Computability.Machines.Turing.MultiTape.ConfigBound
 public import Cslib.Computability.Machines.Turing.MultiTape.Configuration
 public import Cslib.Computability.Machines.Turing.MultiTape.Deterministic
-public import Cslib.Computability.Machines.Turing.MultiTape.DeterministicToNondeterministic
 public import Cslib.Computability.Machines.Turing.MultiTape.Nondeterministic
+public import Cslib.Computability.Machines.Turing.MultiTape.Plumbing.ExtendTapes
+public import Cslib.Computability.Machines.Turing.MultiTape.Plumbing.InputFromTape
+public import Cslib.Computability.Machines.Turing.MultiTape.Plumbing.OutputToTape
 public import Cslib.Computability.Machines.Turing.MultiTape.Plumbing.Sequential
 public import Cslib.Computability.Machines.Turing.MultiTape.Plumbing.TransformsTapes
+public import Cslib.Computability.Machines.Turing.MultiTape.Space
 public import Cslib.Computability.Machines.Turing.MultiTape.TapeLemmas
 public import Cslib.Computability.Machines.Turing.SingleTape.Defs
 public import Cslib.Computability.Machines.Turing.SingleTape.Deterministic
@@ -172,10 +175,12 @@ public import Cslib.Languages.CCS.Basic
 public import Cslib.Languages.CCS.BehaviouralTheory
 public import Cslib.Languages.CCS.Semantics
 public import Cslib.Languages.CombinatoryLogic.Basic
+public import Cslib.Languages.CombinatoryLogic.Computable
 public import Cslib.Languages.CombinatoryLogic.Confluence
 public import Cslib.Languages.CombinatoryLogic.Defs
 public import Cslib.Languages.CombinatoryLogic.Evaluation
 public import Cslib.Languages.CombinatoryLogic.List
+public import Cslib.Languages.CombinatoryLogic.PartrecToSKI
 public import Cslib.Languages.CombinatoryLogic.Recursion
 public import Cslib.Languages.LambdaCalculus.LocallyNameless.Context
 public import Cslib.Languages.LambdaCalculus.LocallyNameless.Fsub.Basic

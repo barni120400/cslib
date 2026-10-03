@@ -50,7 +50,8 @@ noncomputable def computableFunctions (I : Interpretation σ U) (n s : ℕ) :
     Finset.univ.image fun c : Circuit σ n g 1 => fun x => c.eval I x 0
 
 @[simp] theorem mem_computableFunctions {f : (Fin n → U) → U} :
-    f ∈ computableFunctions I n s ↔ ∃ g ≤ s, ∃ c : Circuit σ n g 1, c.Computes I f := by
+    f ∈ computableFunctions I n s ↔
+      ∃ g ≤ s, ∃ c : Circuit σ n g 1, c.Computes I (fun x _ => f x) := by
   classical
   simp [computableFunctions, Circuit.Computes, funext_iff, Nat.lt_succ_iff]
 
@@ -64,7 +65,7 @@ noncomputable def irredundantFunctions (I : Interpretation σ U) (n g : ℕ) :
 
 @[simp] theorem mem_irredundantFunctions {f : (Fin n → U) → U} :
     f ∈ irredundantFunctions I n g ↔ ∃ c : Circuit σ n g 1,
-      c.Computes I f ∧ c.Irredundant I := by
+      c.Computes I (fun x _ => f x) ∧ c.Irredundant I := by
   classical
   simp [irredundantFunctions, Circuit.Computes, funext_iff, and_comm]
 
@@ -83,10 +84,8 @@ private def relabel (c : Circuit σ n g 1) (π : Equiv.Perm (Fin g)) :
 private theorem relabel_line_eval (c : Circuit σ n g 1) (π : Equiv.Perm (Fin g))
     (x : Fin n → U) (v : Fin g → U) (a : Fin g) :
     ((relabel c π).1 a).eval I x v =
-      (c.program.lines (π.symm a)).eval I x (v ∘ π) := by
-  apply Line.eval_mapRenaming
-  intro gate
-  simp [Wire.Renaming.ofPermutation]
+      (c.program.lines (π.symm a)).eval I x (v ∘ π) :=
+  Line.eval_mapRenaming _ _ _ _ _ _ fun _ => rfl
 
 private theorem relabel_unique (c : Circuit σ n g 1) (π : Equiv.Perm (Fin g))
     (x : Fin n → U) (v : Fin g → U)
@@ -100,7 +99,7 @@ private theorem relabel_unique (c : Circuit σ n g 1) (π : Equiv.Perm (Fin g))
 
 private theorem relabel_output (c : Circuit σ n g 1) (π : Equiv.Perm (Fin g))
     (x : Fin n → U) :
-    Fin.addCases x (c.program.eval I x ∘ π.symm) (relabel c π).2 =
+    Wire.elim x (c.program.eval I x ∘ π.symm) (relabel c π).2 =
       c.eval I x 0 := by
   apply Wire.Renaming.value_apply
   intro gate
@@ -113,7 +112,7 @@ private noncomputable def representative (f : irredundantFunctions I n g) :
   (mem_irredundantFunctions.mp f.property).choose
 
 private theorem representative_spec (f : irredundantFunctions I n g) :
-    (representative f).Computes I f ∧
+    (representative f).Computes I (fun x _ => f.1 x) ∧
       (representative f).Irredundant I :=
   (mem_irredundantFunctions.mp f.property).choose_spec
 
@@ -134,7 +133,11 @@ private theorem relabel_injective : Function.Injective
   have hfunction : f = f' := by
     apply Subtype.ext
     funext x
-    rw [← (representative_spec f).1 x, ← (representative_spec f').1 x,
+    have hf : (representative f).eval I x 0 = f.1 x :=
+      congrFun ((representative_spec f).1 x) 0
+    have hf' : (representative f').eval I x 0 = f'.1 x :=
+      congrFun ((representative_spec f').1 x) 0
+    rw [← hf, ← hf',
       ← relabel_output _ π, ← relabel_output _ τ, heq, hvalues]
   subst f'
   have hpermutation : π.symm = τ.symm := by
@@ -152,7 +155,7 @@ theorem card_irredundantFunctions_mul_factorial_le (I : Interpretation σ U) (n 
   classical
   have h := Fintype.card_le_of_injective _ (relabel_injective (I := I) (n := n) (g := g))
   simpa only [Fintype.card_prod, Fintype.card_coe, Fintype.card_perm, Fintype.card_fin,
-    Fintype.card_fun] using h
+    Fintype.card_fun, Wire.card] using h
 
 /-- Normalizing a circuit places its function in one of the irredundant families. -/
 theorem card_computableFunctions_le_sum (I : Interpretation σ U) (n s : ℕ) :
