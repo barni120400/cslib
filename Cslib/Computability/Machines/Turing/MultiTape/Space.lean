@@ -56,19 +56,19 @@ namespace RunPath
 def visitedByTapeHead (p : ntm.RunPath input) (i : Fin k) : Finset ℤ :=
   Finset.univ.image fun n ↦ (p n).workTapePos i
 
-/-- The number of cells touched by the head of work tape `i` along a run path. -/
+/-- The number of positions visited by the head of work tape `i` along a run path. -/
 def spaceUsedByTape (p : ntm.RunPath input) (i : Fin k) : ℕ :=
   (p.visitedByTapeHead i).card
 
-/-- The number of work tape cells touched along a run path. -/
+/-- The number of work tape cells visited along a run path. -/
 def space (p : ntm.RunPath input) : ℕ := ∑ i, p.spaceUsedByTape i
 
 end RunPath
 
-/-- The number of work tape cells touched along a computation path. -/
+/-- The number of work tape cells visited along a computation path. -/
 def ComputationPath.space (p : ntm.ComputationPath input) : ℕ := RunPath.space p.toRunPath
 
-/-- Every computation prefix on `input` touches at most `s` work-tape cells, regardless of its
+/-- Every computation prefix on `input` visits at most `s` work-tape cells, regardless of its
 outcome. This does not require termination. -/
 def RunsInSpace (ntm : MultiTapeNTM k Symbol State) (input : List Symbol) (s : ℕ) : Prop :=
   ∀ p : ntm.ComputationPath input, p.space ≤ s
