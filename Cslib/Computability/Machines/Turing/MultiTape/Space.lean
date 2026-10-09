@@ -12,8 +12,8 @@ public import Cslib.Computability.Machines.Turing.MultiTape.Nondeterministic
 /-!
 # Space usage of multi-tape Turing machines
 
-Defines the space used by a run path and space bounds for multi-tape Turing machines. Space
-usage counts the positions visited by each work-tape head along the path and sums over the tapes.
+Defines the space used by a run path of a multi-tape Turing machine. Space usage counts the
+positions visited by each work-tape head along the path and sums over the tapes.
 
 ## Design
 
@@ -32,9 +32,6 @@ single marker on the work tape and then counts the number of symbols by work tap
 without writing).
 Defining space usage via "cells visited" thus yields the more fine-grained "complexity world" in
 which `DSPACE(1)` is exactly the class of regular languages.
-
-Space bounds apply to every computation prefix, regardless of its outcome.
-`RunsInSpace` does not require termination.
 
 ## References
 
