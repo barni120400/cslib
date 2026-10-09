@@ -14,14 +14,14 @@ public import Cslib.Computability.Machines.Turing.MultiTape.TapeLemmas
 
 The interface through which combinators use machines: a machine reads words from its work tapes
 and leaves words on them. A combinator composing such machines talks about words only, never about
-individual cells, head positions or which tapes a machine modifies.
+individual cells, head positions or the set of tapes a machine has touched.
 
 Configurations are described by *equalities*: `wordsCfg input q ws out` is the configuration whose
 work tape `i` holds exactly the word `ws i` (contents `tapeOfList (ws i)`, head at the start), with
 the input head at the start of the input and output `out`. A specification
 `TransformsTapes tm P Q t s` says: started on word-holding tapes satisfying `P`, after exactly `t`
 steps the machine sits in the halted *normal form* `wordsCfg input none ws' out` (every head reset
-to its initial position, tapes blank outside their words, output unchanged), with the new words
+to its initial position, tapes blank outside their words, output untouched), with the new words
 related to the old ones by `Q` and using at most `s` work-tape cells. The machine may halt earlier
 than `t`; since a halted machine stays put and stops visiting new cells, running on to `t` costs
 nothing, so a fixed step count loses no generality and spares every composition an existential.

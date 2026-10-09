@@ -13,7 +13,7 @@ public import Cslib.Computability.Machines.Turing.MultiTape.TapeLemmas
 # Reading the input from a work tape
 
 `inputFromTape tm` behaves like `tm`, except that it reads its input from a work tape — the
-*virtual input tape* — instead of the real one, which it leaves unused. The virtual input head
+*virtual input tape* — instead of the real one, which it never touches. The virtual input head
 lives at cell `p - 1` when the simulated input head is at position `p`, so the word cells
 `0, …, len - 1` are the input positions `1, …, len` and the two boundary positions read the blanks
 at cells `-1` and `len`.

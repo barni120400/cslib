@@ -60,7 +60,7 @@ public lemma partialInv_isPartialInv (e : Fin k ↪ Fin k') :
   grind [partialInv, Function.Embedding.left_inv_of_invOfMemRange,
     Function.Embedding.right_inv_of_invOfMemRange]
 
-/-- `tm` run on the tapes selected by the embedding `e`, leaving other tapes unchanged: work tape
+/-- `tm` run on the tapes selected by the embedding `e`, leaving other tapes untouched: work tape
 `e j` plays the role of `tm`'s tape `j`, and any tape outside `range e` is never written and never
 moves. -/
 @[expose] public noncomputable def extendTapes (tm : MultiTapeTM k Symbol State)
@@ -131,7 +131,7 @@ public lemma embed_workTapeSymbols_embed (e : Fin k ↪ Fin k') (cfg : Cfg k Sym
   simp [Cfg.workTapeSymbols]
 
 /-- Reindexing is a step-semiconjugation: the reindexed machine acts on the embedded tapes exactly
-as `tm` does, and leaves the extra tapes and their head positions unchanged. -/
+as `tm` does, and never touches the extra tapes. -/
 public lemma step_embed (tm : MultiTapeTM k Symbol State) (e : Fin k ↪ Fin k')
     (cfg : Cfg k Symbol State input) (extraTapes : Fin k' → ℤ → Option Symbol)
     (extraPos : Fin k' → ℤ) :
