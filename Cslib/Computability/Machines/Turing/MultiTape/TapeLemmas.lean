@@ -345,32 +345,18 @@ lemma spaceUsed_le_of_workTapePos_natAbs_le (cfg : Cfg k Symbol State input) (T 
         grind
     _ = k * (2 * R + 1) := by simp [Int.card_Icc]; omega
 
-/-- Avoiding a cell preserves both possible bounds relative to that cell. -/
-lemma inputPos_bounds_of_forall_ne {u v p : ℕ} (huv : u ≤ v)
-    (hno : ∀ t, u ≤ t → t < v → (tm.runFrom cfg t).inputPos.val ≠ p) :
-    ((tm.runFrom cfg u).inputPos.val ≤ p → (tm.runFrom cfg v).inputPos.val ≤ p) ∧
-      (p ≤ (tm.runFrom cfg u).inputPos.val → p ≤ (tm.runFrom cfg v).inputPos.val) := by
-  induction v, huv using Nat.le_induction with
-  | base => exact ⟨id, id⟩
-  | succ v huv ih =>
-    have hprev := ih fun t hut htv => hno t hut (by omega)
-    have := tm.inputPos_step_le (tm.runFrom cfg v)
-    grind [runFrom, Function.iterate_succ_apply', abs_le]
-
-/-- An input head at or left of `p` at time `u` is still at or left of `p` at time `v`
-if it does not visit `p` during `[u, v)`. -/
-lemma inputPos_le_of_forall_ne {u v p : ℕ} (huv : u ≤ v)
-    (hu : (tm.runFrom cfg u).inputPos.val ≤ p)
-    (hno : ∀ t, u ≤ t → t < v → (tm.runFrom cfg t).inputPos.val ≠ p) :
-    (tm.runFrom cfg v).inputPos.val ≤ p :=
-  (inputPos_bounds_of_forall_ne huv hno).1 hu
-
-/-- An input head at or right of `p` at time `u` is still at or right of `p` at time `v`
-if it does not visit `p` during `[u, v)`. -/
-lemma le_inputPos_of_forall_ne {u v p : ℕ} (huv : u ≤ v)
-    (hu : p ≤ (tm.runFrom cfg u).inputPos.val)
-    (hno : ∀ t, u ≤ t → t < v → (tm.runFrom cfg t).inputPos.val ≠ p) :
-    p ≤ (tm.runFrom cfg v).inputPos.val :=
-  (inputPos_bounds_of_forall_ne huv hno).2 hu
+/-- A path avoiding `p` before its last configuration stays on the side where it starts. -/
+lemma inputPos_bounds_of_forall_ne (path : tm.RunPath input) {p : ℕ}
+    (hno : ∀ i : Fin path.length, (path i.castSucc).inputPos.val ≠ p)
+    (i : Fin (path.length + 1)) :
+    (path.head.inputPos.val ≤ p → (path i).inputPos.val ≤ p) ∧
+      (p ≤ path.head.inputPos.val → p ≤ (path i).inputPos.val) := by
+  induction i using Fin.induction with
+  | zero => exact ⟨id, id⟩
+  | succ i ih =>
+    have hstep := tm.inputPos_step_le (path i.castSucc)
+    rw [step_iff.mp (path.step i)] at hstep
+    have := hno i
+    grind [abs_le]
 
 end Turing.MultiTapeTM

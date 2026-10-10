@@ -91,23 +91,38 @@ end ComputationPath
 open Relation Set ComputationPath
 open MultiTapeNTM.ComputationPath (apply_zero)
 
-/-- Between consecutive visits, the input head stays on the side chosen by its first step. -/
+/-- The slice between consecutive visits stays on the side chosen by its first step. -/
 private lemma inputPos_bounds_of_covBy {path : tm.ComputationPath input} {p : ℕ}
-    {u v : path.visitTimes p} {t : Fin (path.length + 1)} (h : u ⋖ v) (ht : t ∈ Icc u.val v.val) :
-    ((tm.step (path u.val)).inputPos.val ≤ p → (path t).inputPos.val ≤ p) ∧
-      (p ≤ (tm.step (path u.val)).inputPos.val → p ≤ (path t).inputPos.val) := by
-  rcases eq_or_lt_of_le ht.1 with rfl | hut
-  · simp [(mem_visitTimes.mp u.property).1]
-  · have hne (r : ℕ) (hur : u.val.val + 1 ≤ r) (hrt : r < t.val) :
-        (tm.runFrom (tm.initCfg input) r).inputPos.val ≠ p := by
-      intro hp
-      let i : Fin (path.length + 1) := ⟨r, hrt.trans t.isLt⟩
-      have hi : i ∈ path.visitTimes p := mem_visitTimes_of_le v.property
-        (by exact (hrt.trans_le ht.2).le)
-        (by simpa only [computationPath_apply_eq_runFrom] using hp)
-      exact h.2 (c := ⟨i, hi⟩) (by exact Nat.lt_of_succ_le hur) (by exact hrt.trans_le ht.2)
-    simpa only [computationPath_apply_eq_runFrom, runFrom, Function.iterate_succ_apply'] using
-      tm.inputPos_bounds_of_forall_ne (show u.val.val < t.val from hut) hne
+    {u v : path.visitTimes p} (h : u ⋖ v) :
+    ∀ c ∈ (path.toRunPath.take v.val).drop ⟨u.val, Nat.lt_succ_of_le h.le⟩,
+      ((tm.step (path u.val)).inputPos.val ≤ p → c.inputPos.val ≤ p) ∧
+        (p ≤ (tm.step (path u.val)).inputPos.val → p ≤ c.inputPos.val) := by
+  have huv : u.val.val < v.val.val := h.lt
+  let segment := (path.toRunPath.take v.val).drop ⟨u.val.val + 1, Nat.succ_lt_succ huv⟩
+  have hhead : segment.head = tm.step (path u.val) := by
+    simp only [segment, RelSeries.head_drop, RelSeries.take]
+    exact (step_iff.mp (path.step ⟨u.val, by omega⟩)).symm
+  have hno (i : Fin segment.length) : (segment i.castSucc).inputPos.val ≠ p := by
+    intro hp
+    have hi : i.val + (u.val.val + 1) < v.val.val := by
+      have : i.val < v.val.val - (u.val.val + 1) := i.isLt
+      omega
+    let j : Fin (path.length + 1) := ⟨_, hi.trans v.val.isLt⟩
+    exact h.2 (c := ⟨j, mem_visitTimes_of_le v.property hi.le hp⟩) (by
+      change u.val.val < i.val + (u.val.val + 1)
+      omega) hi
+  rintro _ ⟨⟨i, hi⟩, rfl⟩
+  cases i with
+  | zero => simp [RelSeries.drop, RelSeries.take, (mem_visitTimes.mp u.property).1]
+  | succ i =>
+    have hi' : i < segment.length + 1 := by
+      change i + 1 < v.val.val - u.val.val + 1 at hi
+      change i < v.val.val - (u.val.val + 1) + 1
+      omega
+    have hb := tm.inputPos_bounds_of_forall_ne segment hno ⟨i, hi'⟩
+    rw [hhead] at hb
+    simpa [segment, RelSeries.take, RelSeries.drop, Nat.add_assoc, Nat.add_left_comm,
+      Nat.add_comm] using hb
 
 /-- An ordered pair of input-symbol indices. The cut deletes the symbols after the first
 through the second. Equal endpoints give an empty deletion.
@@ -224,31 +239,23 @@ lemma step {c : Cfg k Symbol State input} {c' : Cfg k Symbol State cut.shortened
     (h.inputSymbol hsym (hside.imp And.left And.left))
   grind [MapsCore, position_moveInputPos]
 
-/-- Matching configurations simulate any path segment contained in one retained side. -/
+/-- Matching configurations simulate a path contained in one retained side. -/
 lemma reaches_path (hsym : input[cut.fst] = input[cut.snd])
-    {path : tm.ComputationPath input} {c' : Cfg k Symbol State cut.shortened}
-    {u v : Fin (path.length + 1)} (h : cut.MapsCore (path u) c') (huv : u ≤ v)
-    (hside : MapsTo (fun i ↦ (path i).inputPos.val) (Icc u v) (Iic cut.left) ∨
-      MapsTo (fun i ↦ (path i).inputPos.val) (Icc u v) (Ici cut.right)) :
-    ∃ d, ReflTransGen tm.Step c' d ∧ cut.MapsCore (path v) d := by
-  induction v using Fin.induction with
-  | zero =>
-    obtain rfl : u = 0 := le_antisymm huv (Fin.zero_le _)
-    exact ⟨c', .refl, h⟩
-  | succ v ih =>
-    by_cases hu : u ≤ v.castSucc
-    · obtain ⟨d, hd, hm⟩ := ih hu (by grind [MapsTo])
-      have hstep : cut.SameSide (path v.castSucc).inputPos.val
-          (path v.succ).inputPos.val := by grind [MapsTo, SameSide]
-      have heq := step_iff.mp (path.step v)
-      refine ⟨tm.step d, hd.tail (step_iff.mpr rfl), ?_⟩
-      rw [← heq] at hstep ⊢
-      exact hm.step hsym hstep
-    · have huv' : u.val ≤ v.val + 1 := huv
-      have hu' : ¬u.val ≤ v.val := hu
-      obtain rfl : u = v.succ :=
-        Fin.ext (by simpa only [Fin.val_succ] using Nat.le_antisymm huv' (by omega))
-      exact ⟨c', .refl, h⟩
+    {path : tm.RunPath input} {c' : Cfg k Symbol State cut.shortened}
+    (h : cut.MapsCore path.head c')
+    (hside : (∀ c ∈ path, c.inputPos.val ≤ cut.left) ∨
+      (∀ c ∈ path, cut.right ≤ c.inputPos.val)) :
+    ∃ d, ReflTransGen tm.Step c' d ∧ cut.MapsCore path.last d := by
+  induction path using RelSeries.inductionOn' with
+  | singleton c => exact ⟨c', .refl, h⟩
+  | snoc path c hc ih =>
+    obtain ⟨d, hd, hm⟩ := ih (by simpa using h) (by grind [RelSeries.mem_snoc])
+    have hstep : cut.SameSide path.last.inputPos.val c.inputPos.val := by
+      have := path.last_mem
+      grind [SameSide, RelSeries.mem_snoc]
+    refine ⟨tm.step d, hd.tail (step_iff.mpr rfl), ?_⟩
+    simpa only [RelSeries.last_snoc, ← step_iff.mp hc] using hm.step hsym (by
+      simpa only [step_iff.mp hc] using hstep)
 
 end MapsCore
 
@@ -294,20 +301,18 @@ private lemma exists_mapsCore_first_visit {path : tm.ComputationPath input}
     (hsym : input[cut.fst] = input[cut.snd])
     {u : path.visitTimes cut.left} (hu : IsMin u) :
     ∃ c', ReflTransGen tm.Step (tm.initCfg cut.shortened) c' ∧ cut.MapsCore (path u.val) c' := by
-  have hinit : cut.MapsCore (path 0) (tm.initCfg cut.shortened) := by
-    simpa only [apply_zero] using cut.mapsCore_init
-  apply hinit.reaches_path hsym (Fin.zero_le _)
-  left
-  rintro v ⟨_, hv⟩
-  change (path v).inputPos.val ≤ cut.left
-  rw [tm.computationPath_apply_eq_runFrom path v]
-  apply tm.inputPos_le_of_forall_ne (Nat.zero_le v.val) (by simp [left, runFrom])
-  intro r _ hrv hp
-  let i : Fin (path.length + 1) := ⟨r, hrv.trans v.isLt⟩
-  have hi : i ∈ path.visitTimes cut.left := mem_visitTimes_of_le u.property
-    (by exact (hrv.trans_le hv).le)
-    (by simpa only [computationPath_apply_eq_runFrom] using hp)
-  exact hu.not_lt (b := ⟨i, hi⟩) (by exact hrv.trans_le hv)
+  let segment := path.toRunPath.take u.val
+  have hinit : cut.MapsCore segment.head (tm.initCfg cut.shortened) := by
+    simpa [segment, path.head_eq] using cut.mapsCore_init (tm := tm)
+  have hno (i : Fin segment.length) : (segment i.castSucc).inputPos.val ≠ cut.left := by
+    intro hp
+    let j : Fin (path.length + 1) := ⟨i, i.isLt.trans u.val.isLt⟩
+    have hj : j ∈ path.visitTimes cut.left := mem_visitTimes_of_le u.property i.isLt.le hp
+    exact hu.not_lt (b := ⟨j, hj⟩) i.isLt
+  apply hinit.reaches_path hsym (.inl ?_)
+  rintro _ ⟨i, rfl⟩
+  exact (tm.inputPos_bounds_of_forall_ne segment hno i).1 (by
+    simp [segment, path.head_eq, left])
 
 namespace VisitPairing
 
@@ -342,12 +347,19 @@ private lemma reaches_next_visit {u v : path.visitTimes cut.left}
     ∃ d, ReflTransGen tm.Step c' d ∧
       cut.MapsCore (path v.val) d := by
   rcases pairing.step_sides u with hleft | hright
-  · exact h.reaches_path pairing.symbol_eq huv.le
-      (.inl fun t ht => (inputPos_bounds_of_covBy huv ht).1 hleft)
+  · let segment := (path.toRunPath.take v.val).drop ⟨u.val, Nat.lt_succ_of_le huv.le⟩
+    have hm : cut.MapsCore segment.head c' := by
+      simpa [segment, RelSeries.take] using h
+    simpa [segment] using hm.reaches_path pairing.symbol_eq
+      (.inl fun c hc ↦ (inputPos_bounds_of_covBy huv c hc).1 hleft)
   · have he := (apply_covBy_apply_iff pairing.orderIso).mpr huv
-    obtain ⟨d, hd, hm⟩ := ((pairing.mapsCore_iff u).mp h).reaches_path
-      pairing.symbol_eq he.le (.inr fun t ht => (inputPos_bounds_of_covBy he ht).2 hright)
-    exact ⟨d, hd, (pairing.mapsCore_iff v).mpr hm⟩
+    let segment := (path.toRunPath.take (pairing.orderIso v).val).drop
+      ⟨(pairing.orderIso u).val, Nat.lt_succ_of_le he.le⟩
+    have hm : cut.MapsCore segment.head c' := by
+      simpa [segment, RelSeries.take] using (pairing.mapsCore_iff u).mp h
+    obtain ⟨d, hd, hm⟩ := hm.reaches_path pairing.symbol_eq
+      (.inr fun c hc ↦ (inputPos_bounds_of_covBy he c hc).2 hright)
+    exact ⟨d, hd, (pairing.mapsCore_iff v).mpr (by simpa [segment] using hm)⟩
 
 /-- Induct over the paired visits, starting with the retained prefix. -/
 private lemma exists_mapsCore_left_visit (u : path.visitTimes cut.left) :
