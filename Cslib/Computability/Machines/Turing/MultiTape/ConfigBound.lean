@@ -271,13 +271,44 @@ lemma core_step_eq_of_core_eq {c₁ c₂ : Cfg k Symbol State input} (h : c₁.c
   | none => rw [MultiTapeTM.step_of_halt rfl, MultiTapeTM.step_of_halt rfl]; rfl
   | some q => rw [MultiTapeTM.step_of_state rfl, MultiTapeTM.step_of_state rfl]; rfl
 
+namespace MultiTapeTM
+
+/-- Equal storages and scanned input symbols give equal next storages, and both input heads
+execute the same move. For halted configurations, this is the stationary move. -/
+lemma exists_step_move_of_storage_eq {input' : List Symbol}
+    {c : Cfg k Symbol State input} {c' : Cfg k Symbol State input'}
+    (hstore : c.storage = c'.storage) (hsym : c.inputSymbol = c'.inputSymbol) :
+    ∃ m, (tm.step c).storage = (tm.step c').storage ∧
+      (tm.step c).inputPos = moveInputPos c.inputPos m ∧
+      (tm.step c').inputPos = moveInputPos c'.inputPos m := by
+  rcases c with ⟨state, pos, tapes, heads, out⟩
+  rcases c' with ⟨state', pos', tapes', heads', out'⟩
+  simp only [Cfg.storage, Storage.mk.injEq] at hstore
+  rcases hstore with ⟨rfl, rfl, rfl⟩
+  cases state with
+  | none =>
+    rw [step_of_halt rfl, step_of_halt rfl]
+    exact ⟨0, rfl, (moveInputPos_zero _).symm, (moveInputPos_zero _).symm⟩
+  | some state =>
+    rw [step_of_state rfl, step_of_state rfl]
+    unfold Cfg.workTapeSymbols
+    rw [hsym]
+    exact ⟨_, rfl, rfl, rfl⟩
+
+/-- Runs starting with the same core keep the same core. -/
+lemma core_runFrom_eq_of_core_eq {c₁ c₂ : Cfg k Symbol State input}
+    (h : c₁.core = c₂.core) (t : ℕ) :
+    (tm.runFrom c₁ t).core = (tm.runFrom c₂ t).core := by
+  induction t with
+  | zero => exact h
+  | succ t ih =>
+    simpa only [runFrom, Function.iterate_succ_apply'] using core_step_eq_of_core_eq (tm := tm) ih
+
 /-! ## The storages and cores of a space-bounded run
 
 These are the main results giving upper bounds on the number of storages and configuration cores
 reachable in bounded space.
 -/
-
-namespace MultiTapeTM
 
 /-- The storage reached after `t` steps fits in the windows given by the per-tape space usage up
 to step `t`. -/

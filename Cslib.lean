@@ -82,6 +82,7 @@ public import Cslib.Computability.Machines.Turing.MultiTape.Combinators.Id
 public import Cslib.Computability.Machines.Turing.MultiTape.ConfigBound
 public import Cslib.Computability.Machines.Turing.MultiTape.Configuration
 public import Cslib.Computability.Machines.Turing.MultiTape.Deterministic
+public import Cslib.Computability.Machines.Turing.MultiTape.InputShortening
 public import Cslib.Computability.Machines.Turing.MultiTape.Nondeterministic
 public import Cslib.Computability.Machines.Turing.MultiTape.Plumbing.ClearWork
 public import Cslib.Computability.Machines.Turing.MultiTape.Plumbing.ExtendTapes
@@ -118,6 +119,7 @@ public import Cslib.Crypto.Protocols.SecretSharing.Defs
 public import Cslib.Crypto.Protocols.SecretSharing.Scheme
 public import Cslib.Crypto.Protocols.SecretSharing.Shamir
 public import Cslib.Crypto.Protocols.SecretSharing.Shamir.Polynomial
+public import Cslib.Foundations.Analysis.Asymptotics
 public import Cslib.Foundations.Combinatorics.InfiniteGraphRamsey
 public import Cslib.Foundations.Control.Monad.Free
 public import Cslib.Foundations.Control.Monad.Free.Effects
@@ -147,6 +149,7 @@ public import Cslib.Foundations.Data.PFunctor.Free.Fold
 public import Cslib.Foundations.Data.PFunctor.Free.W
 public import Cslib.Foundations.Data.Polynomial.Monotone
 public import Cslib.Foundations.Data.Set.Saturation
+public import Cslib.Foundations.Data.Set.Seq
 public import Cslib.Foundations.Data.StackTape
 public import Cslib.Foundations.Lint.Basic
 public import Cslib.Foundations.Logic.InferenceSystem

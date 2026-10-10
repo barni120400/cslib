@@ -13,7 +13,7 @@ public import Mathlib.Order.Lattice.Nat
 /-!
 # Tape head visitation and space-usage lemmas
 
-This file collects lemmas about the set of positions visited by a work-tape head
+This file collects lemmas about the set of positions visited by a work-tape or input-tape head
 (`MultiTapeTM.visitedByTapeHead`) and the resulting space-usage measures
 (`MultiTapeTM.spaceUsedByTape`, `MultiTapeTM.spaceUsed`) and how the tape head positions
 influence the cells that are modified on a tape.
@@ -265,6 +265,14 @@ lemma spaceUsed_eq_of_halt (cfg : Cfg k Symbol State input) {τ t : ℕ} (hle : 
   Finset.sum_congr rfl fun i _ =>
     congrArg Finset.card (tm.visitedByTapeHead_eq_of_halt cfg hle hhalt i)
 
+/-- A bound on space at a halting time bounds space throughout the run. -/
+lemma spaceUsed_le_of_halt {cfg : Cfg k Symbol State input} {T s : ℕ}
+    (hhalt : (tm.runFrom cfg T).Halted) (hs : tm.spaceUsed cfg T ≤ s) (t : ℕ) :
+    tm.spaceUsed cfg t ≤ s := by
+  rcases le_total t T with ht | ht
+  · exact (tm.spaceUsed_mono cfg ht).trans hs
+  · rwa [tm.spaceUsed_eq_of_halt cfg ht hhalt]
+
 /-- A run that never moves a work-tape head visits one cell per tape. -/
 lemma spaceUsed_le_of_workTapePos_const (cfg : Cfg k Symbol State input) (u : ℕ)
     (h : ∀ m ≤ u, (tm.runFrom cfg m).workTapePos = cfg.workTapePos) :
@@ -301,5 +309,51 @@ lemma spaceUsed_prependOutput (cfg : Cfg k Symbol State input) (pre : List Symbo
   spaceUsed_eq_of_workTapePos _ _ n fun m _ => by rw [runFrom_prependOutput]; rfl
 
 end PrependOutput
+
+/-- If every work head stays in `[-R, R]`, the run visits at most `k * (2 * R + 1)` cells. -/
+lemma spaceUsed_le_of_workTapePos_natAbs_le (cfg : Cfg k Symbol State input) (T R : ℕ)
+    (h : ∀ t ≤ T, ∀ i, ((tm.runFrom cfg t).workTapePos i).natAbs ≤ R) :
+    tm.spaceUsed cfg T ≤ k * (2 * R + 1) := by
+  calc tm.spaceUsed cfg T
+    _ ≤ ∑ _ : Fin k, (Finset.Icc (-(R : ℤ)) R).card := by
+      apply Finset.sum_le_sum
+      intro i _
+      exact tm.spaceUsedByTape_le_card cfg fun t ht => by
+        have := h t ht i
+        grind
+    _ = k * (2 * R + 1) := by simp [Int.card_Icc]; omega
+
+/-- Avoiding a cell preserves both possible bounds relative to that cell. -/
+lemma inputPos_bounds_of_forall_ne {u v p : ℕ} (huv : u ≤ v)
+    (hno : ∀ t, u ≤ t → t < v → (tm.runFrom cfg t).inputPos.val ≠ p) :
+    ((tm.runFrom cfg u).inputPos.val ≤ p → (tm.runFrom cfg v).inputPos.val ≤ p) ∧
+      (p ≤ (tm.runFrom cfg u).inputPos.val → p ≤ (tm.runFrom cfg v).inputPos.val) := by
+  induction v, huv using Nat.le_induction with
+  | base => exact ⟨id, id⟩
+  | succ v huv ih =>
+    have hprev := ih fun t hut htv => hno t hut (by omega)
+    have := hno v huv (Nat.lt_succ_self _)
+    have hstep : |((tm.runFrom cfg (v + 1)).inputPos.val : ℤ) -
+        (tm.runFrom cfg v).inputPos.val| ≤ 1 := by
+      simpa only [runFrom, Function.iterate_succ_apply'] using
+        tm.inputPos_step_le (tm.runFrom cfg v)
+    rw [abs_le] at hstep
+    constructor <;> intro h <;> omega
+
+/-- An input head at or left of `p` at time `u` is still at or left of `p` at time `v`
+if it does not visit `p` during `[u, v)`. -/
+lemma inputPos_le_of_forall_ne {u v p : ℕ} (huv : u ≤ v)
+    (hu : (tm.runFrom cfg u).inputPos.val ≤ p)
+    (hno : ∀ t, u ≤ t → t < v → (tm.runFrom cfg t).inputPos.val ≠ p) :
+    (tm.runFrom cfg v).inputPos.val ≤ p :=
+  (inputPos_bounds_of_forall_ne huv hno).1 hu
+
+/-- An input head at or right of `p` at time `u` is still at or right of `p` at time `v`
+if it does not visit `p` during `[u, v)`. -/
+lemma le_inputPos_of_forall_ne {u v p : ℕ} (huv : u ≤ v)
+    (hu : p ≤ (tm.runFrom cfg u).inputPos.val)
+    (hno : ∀ t, u ≤ t → t < v → (tm.runFrom cfg t).inputPos.val ≠ p) :
+    p ≤ (tm.runFrom cfg v).inputPos.val :=
+  (inputPos_bounds_of_forall_ne huv hno).2 hu
 
 end Turing.MultiTapeTM

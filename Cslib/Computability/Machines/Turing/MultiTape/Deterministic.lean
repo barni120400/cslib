@@ -245,6 +245,13 @@ lemma existsUnique_haltsAt {input : List Symbol} {cfg : Cfg k Symbol State input
   let ⟨u, _, hu⟩ := exists_haltsAt hhalt
   ⟨u, hu, fun _ h => h.unique hu⟩
 
+/-- The input head moves by at most one cell at each step. -/
+lemma inputPos_step_le (cfg : Cfg k Symbol State input) :
+    |((tm.step cfg).inputPos.val : ℤ) - cfg.inputPos.val| ≤ 1 := by
+  cases hstate : cfg.state with
+  | none => simp [step_of_halt hstate]
+  | some q => rw [step_of_state hstate]; exact moveInputPos_sub_le _ _
+
 /-- The work-tape head moves by at most one cell in a single step. -/
 lemma workTapePos_step_le (c : Cfg k Symbol State input) (i : Fin k) :
     |(tm.step c).workTapePos i - c.workTapePos i| ≤ 1 := by
