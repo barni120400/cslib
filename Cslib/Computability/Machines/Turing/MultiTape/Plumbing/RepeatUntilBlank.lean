@@ -135,7 +135,8 @@ lemma exists_round {P : (input : List Symbol) → (Fin k → List Symbol) → Pr
   · change Cfg.workTapePos
       ((repeatUntilBlank i tm).runFrom (runCfg (wordsCfg input (some tm.q₀) w out)) m) l ∈ _
     rw [runFrom_runCfg hhalt (by lia), workTapePos_runCfg]
-    exact inWindow_ofDeterministic (fun _ => rfl) hsp _ ⟨⟨m, show m < t + 1 by lia⟩, rfl⟩ l
+    exact MultiTapeNTM.RunPath.inWindow_of_space_le (fun _ => rfl) hsp _
+      ⟨⟨m, show m < t + 1 by lia⟩, rfl⟩ l
   · change ((repeatUntilBlank i tm).runFrom _ (u + 1)).workTapePos l ∈ _
     simp [hround, mem_window]
 
