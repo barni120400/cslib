@@ -16,25 +16,54 @@ public import Mathlib.Order.Interval.Basic
 /-!
 # Input shortening for multi-tape Turing machines
 
-A visit sequence records the storages seen at a fixed input position throughout a run.
-It may be finite or infinite. Storage consists of the state, work tapes, and work-head positions.
-A core also includes the input-head position. Repeating a core repeats the rest of the
-computation, regardless of the write-only output, so finitely visited positions have distinct
-storages at their visits.
+We prove that an input to a halting space-bounded machine can be shortened while preserving any
+chosen storage reached by its run, provided the input is sufficiently long relative to the space
+bound. This is the combinatorial step used to show that `o(log log n)` space implies constant space.
 
-`InputCut` describes a deletion between input-symbol indices. Its position map relates
-configurations on the original and shortened inputs, allowing the run segments on either side
-to be joined.
+The idea is to find two input cells with the same symbol and the same sequence of visited
+storages. Deleting the symbols after the first cell through the second lets us join the run
+segments on the retained sides. Choosing both cells on the same side of the input head at the
+chosen time preserves that time's storage. A finitely visited cell cannot repeat a storage,
+so the space bound limits the number of visit sequences. The pigeonhole principle then supplies
+suitable cells on a sufficiently long input.
 
-`InputCut.VisitPairing` pairs boundary visits in order with equal symbols and storages.
-The shortened run first follows the retained prefix. Between consecutive pairs, the common
-head move selects an excursion on a retained side. Induction over the pairs reaches every
-boundary visit. Subsequent retained steps reach every configuration outside the cut.
+## Main definitions
+
+* `visitTimes`: all times at which a run's input head is at a given position.
+* `visitSequence`: the finite or infinite sequence of storages at those times, in chronological
+  order. A storage consists of the state, work tapes, and work-head positions.
+* `InputCut`: an ordered pair of input-symbol indices describing the endpoints of a deletion.
+* `InputCut.left`, `InputCut.right`: the corresponding input-head positions, offset by one for
+  the left endmarker.
+* `InputCut.shortened`: the input with the symbols after the first endpoint through the second
+  deleted.
+* `InputCut.position`: collapses the deleted interval to its left endpoint and shifts later
+  input-head positions left.
+* `InputCut.SameSide`: two positions lie on the same retained side of the cut.
+* `InputCut.MapsCore`: configurations on the original and shortened inputs have equal storage
+  and input-head positions related by the cut's position map.
+* `InputCut.VisitPairing`: an order-preserving pairing of boundary visits with equal storages
+  and equal boundary symbols.
+
+## Main results
+
+* `InputCut.MapsCore.step`: matching configurations remain matched after a step on a retained side
+  when the boundary symbols agree.
+* `exists_storage_cut`: equal boundary symbols and visit sequences preserve every storage reached
+  outside the deleted interval.
+* `finite_visitTimes_of_halt`: every position other than the final input-head position has finitely
+  many visits in a halting run.
+* `storage_runFrom_injOn_visitTimes`: distinct visits to a finitely visited position have distinct
+  storages.
+* `encard_visitTimes_le`: the number of visits to such a position is at most `storageBound`.
+* `exists_shorter_input_storage`: a sufficiently long input to a halting space-bounded machine
+  has a shorter input whose run reaches a chosen storage from the original run.
+
+## Implementation notes
 
 The proof adapts Katz's cell-visit crossing-sequence argument. His semi-configurations include
 the scanned input symbol, whose equality is required separately here. Our sequences cover the
-whole run, so counting excludes the final head position after halting. To preserve a chosen
-storage, we select matching positions on the same side of its input-head position.
+whole run, so counting excludes the final head position after halting.
 
 ## References
 
