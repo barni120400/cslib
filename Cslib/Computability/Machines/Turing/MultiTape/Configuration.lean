@@ -214,18 +214,6 @@ lemma inputSymbolInner {cfg : Cfg k Symbol State input} (p : ℕ)
     cfg.inputSymbol = some input[p] := by
   grind [Cfg.inputSymbol]
 
-/-- Read the input by zero-based optional indexing, returning `none` at either endmarker. -/
-lemma inputSymbol_eq_getElem? (cfg : Cfg k Symbol State input) :
-    cfg.inputSymbol = if cfg.inputPos.val = 0 then none else input[cfg.inputPos.val - 1]? := by
-  by_cases h₀ : cfg.inputPos = 0
-  · simp [Cfg.inputSymbol, h₀]
-  · have h₀' : cfg.inputPos.val ≠ 0 := fun h => h₀ (Fin.ext h)
-    rw [Cfg.inputSymbol, dite_eq_right h₀, ite_eq_right h₀']
-    split_ifs with hend
-    · simp [hend]
-    · have hi : cfg.inputPos.val - 1 < input.length := by have := cfg.inputPos.isLt; omega
-      simp [List.getElem?_eq_getElem hi]
-
 /-- The symbol read by work tape `i`. -/
 def Cfg.workTapeSymbols (cfg : Cfg k Symbol State input) (i : Fin k) : Option Symbol :=
   cfg.workTapes i (cfg.workTapePos i)

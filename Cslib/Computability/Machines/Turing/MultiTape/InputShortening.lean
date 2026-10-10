@@ -195,8 +195,9 @@ lemma inputSymbol (hsym : input[cut.fst] = input[cut.snd])
     {c : Cfg k Symbol State input} {c' : Cfg k Symbol State cut.shortened}
     (h : cut.MapsCore c c') (hp : c.inputPos.val ≤ cut.left ∨ cut.right ≤ c.inputPos.val) :
     c.inputSymbol = c'.inputSymbol := by
-  simp only [inputSymbol_eq_getElem?, h.1, cut.position_eq_zero,
-    cut.getElem?_position hsym hp]
+  have hsym := cut.getElem?_position hsym hp
+  have hzero := cut.position_eq_zero (p := c.inputPos.val)
+  grind [Cfg.inputSymbol, MapsCore]
 
 /-- Equal boundary symbols preserve matching configurations across a retained step. -/
 lemma step {c : Cfg k Symbol State input} {c' : Cfg k Symbol State cut.shortened}
@@ -289,8 +290,9 @@ private lemma step_sides (u : tm.visitTimes (tm.initCfg input) cut.left) :
   have hright := tm.mem_visitTimes.mp (pairing.orderIso u).property
   have hsym : (tm.runFrom (tm.initCfg input) u).inputSymbol =
       (tm.runFrom (tm.initCfg input) (pairing.orderIso u)).inputSymbol := by
-    rw [inputSymbol_eq_getElem?, inputSymbol_eq_getElem?, hleft, hright]
-    simpa [left, right, Fin.getElem_fin] using pairing.symbol_eq
+    rw [inputSymbolInner cut.fst.val (by simpa [left, Nat.add_comm] using hleft) cut.fst.isLt,
+      inputSymbolInner cut.snd.val (by simpa [right, Nat.add_comm] using hright) cut.snd.isLt]
+    exact congrArg some pairing.symbol_eq
   obtain ⟨m, _, hm, hm'⟩ := tm.exists_step_move_of_storage_eq (pairing.storage_eq u) hsym
   simp only [runFrom] at hm hm' hleft hright
   simp only [runFrom, Function.iterate_succ_apply']

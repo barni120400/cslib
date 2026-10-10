@@ -85,6 +85,16 @@ lemma step_of_halt {c c' : Cfg k Symbol State input} (h : c.Halted) :
     ntm.Step c c' ↔ c' = c := by
   simp [Step, h]
 
+/-- The input head moves by at most one cell in any step. -/
+lemma inputPos_step_le {c c' : Cfg k Symbol State input} (h : ntm.Step c c') :
+    |(c'.inputPos.val : ℤ) - c.inputPos.val| ≤ 1 := by
+  cases hstate : c.state with
+  | none => simp_all [Step]
+  | some q =>
+    simp only [Step, hstate] at h
+    obtain ⟨action, _, rfl⟩ := h
+    exact moveInputPos_sub_le _ _
+
 /-- The initial configuration corresponding to an input string. -/
 @[simp]
 def initCfg (ntm : MultiTapeNTM k Symbol State) (input : List Symbol) :
