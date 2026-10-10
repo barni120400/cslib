@@ -287,24 +287,6 @@ lemma runsInTime_of_halted {input : List Symbol} {t : ℕ}
   rw [computationPath_last_eq_runFrom p, runFrom_eq_of_halt _ _ hp h]
   exact h
 
-/-- In `t` steps the input head moves at most `t` positions to the right. -/
-lemma inputPos_runFrom_le (tm : MultiTapeTM k Symbol State)
-    (cfg : Cfg k Symbol State input) (t : ℕ) :
-    ((tm.runFrom cfg t).inputPos : ℕ) ≤ (cfg.inputPos : ℕ) + t := by
-  induction t with
-  | zero => simp [runFrom]
-  | succ t ih =>
-    rw [runFrom, Function.iterate_succ_apply', ← runFrom]
-    by_cases hq : (tm.runFrom cfg t).state = none
-    · rw [step_of_halt hq]
-      omega
-    · obtain ⟨q, hq⟩ := Option.ne_none_iff_exists'.mp hq
-      have h : ((tm.step (tm.runFrom cfg t)).inputPos : ℕ) ≤
-          ((tm.runFrom cfg t).inputPos : ℕ) + 1 := by
-        rw [step_inputPos_of_state hq]
-        exact val_moveInputPos_le _ _
-      omega
-
 /-- The machine eventually halts on `input` with the given `output`. -/
 def Computes (tm : MultiTapeTM k Symbol State) (input output : List Symbol) : Prop :=
   ∃ u, (tm.runFrom (tm.initCfg input) u).Halted ∧
