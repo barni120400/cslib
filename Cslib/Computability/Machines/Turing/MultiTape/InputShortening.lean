@@ -16,22 +16,13 @@ public import Mathlib.Order.Interval.Basic
 /-!
 # Input shortening for multi-tape Turing machines
 
-We construct shorter inputs for a halting deterministic Turing machine while preserving space
-configurations from its run. A space configuration records the internal state, work-tape contents,
-and work-head positions, represented here by `Storage`.
-
-The idea is to find two input cells with the same symbol and the same sequence of visited space
-configurations. Deleting the symbols after the first cell through the second lets us join the
-run segments on the retained sides. Every space configuration reached outside the deleted
-interval also occurs in the run on the shorter input, possibly at a different time.
-
-A finitely visited cell cannot repeat a space configuration, so the space bound limits the number
-of visit sequences. On a sufficiently long input, the pigeonhole principle supplies matching
-cells on the same side of any given input-head position. Thus any space configuration reached
-by the original run can be preserved by a suitable cut.
-
-This input-shortening result is the combinatorial step in the proof of
-`SPACE(o(log log n)) = SPACE(1)`.
+Consider a deterministic Turing machine and an input on which it halts. For each input cell,
+we record the sequence of space configurations (`Storage`) at the times when the input head
+visits that cell. We show that if two distinct cells contain the same symbol and have the same
+sequence, deleting the symbols after the first cell through the second produces a shorter input.
+The run on this shorter input reaches every space configuration reached by the original run
+while its input head is outside the deleted interval. This property is the main ingredient in
+the proof of `SPACE(o(log log n)) = SPACE(1)`.
 
 ## Main definitions
 
