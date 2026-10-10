@@ -119,6 +119,17 @@ lemma length_output_mono (p : ntm.RunPath input) :
   have : ntm.Step (p i.castSucc) (p i.succ) := p.step i
   grind [Step, Action.apply_output]
 
+/-- The input head moves at most one position to the right per step. -/
+lemma inputPos_last_le (p : ntm.RunPath input) :
+    (p.last.inputPos : ℕ) ≤ p.head.inputPos + p.length := by
+  induction p using RelSeries.inductionOn' with
+  | singleton c => simp
+  | snoc p c h ih =>
+    have : (c.inputPos : ℕ) ≤ p.last.inputPos + 1 := by
+      grind [Step, Action.apply_inputPos, val_moveInputPos_le]
+    simp only [RelSeries.last_snoc, RelSeries.head_snoc, RelSeries.snoc_length]
+    omega
+
 /-- Once a run path is halted, its configuration stays unchanged. -/
 lemma last_eq_of_head_halted (p : ntm.RunPath input) (h : p.head.Halted) : p.last = p.head := by
   induction p using RelSeries.inductionOn' with
