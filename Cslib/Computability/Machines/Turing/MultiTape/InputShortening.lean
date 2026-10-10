@@ -64,6 +64,31 @@ The proof idea follows [Katz2007], §1.2, Theorem 4.
 
 @[expose] public section
 
+namespace Nat
+
+/-- Counting earlier elements assigns a unique index to each element of a set of times. -/
+private lemma partialInv_count_eq_some (s : Set ℕ) [DecidablePred (· ∈ s)] (t : s) (n : ℕ) :
+    Function.partialInv (fun t : s ↦ Nat.count (· ∈ s) t.val) n = some t ↔
+      Nat.count (· ∈ s) t.val = n :=
+  (show Function.Injective (fun t : s ↦ Nat.count (· ∈ s) t.val) from
+    fun a b h ↦ Subtype.ext (Nat.count_injective a.property b.property h)).isPartialInv t n
+
+/-- Inverting the count of earlier elements enumerates a set of natural numbers as a sequence. -/
+lemma isSeq_partialInv_count (s : Set ℕ) [DecidablePred (· ∈ s)] :
+    Stream'.IsSeq (Function.partialInv (fun t : s ↦ Nat.count (· ∈ s) t.val)) := by
+  intro n hn
+  apply Option.eq_none_iff_forall_not_mem.mpr
+  intro t ht
+  have ht := (partialInv_count_eq_some s t _).mp ht
+  have hb (hf : s.Finite) : n < hf.toFinset.card := by
+    have := Nat.count_lt_card (p := (· ∈ s)) hf t.property
+    omega
+  have he := (partialInv_count_eq_some s ⟨Nat.nth (· ∈ s) n, Nat.nth_mem n hb⟩ n).mpr
+    (Nat.count_nth hb)
+  simp [hn] at he
+
+end Nat
+
 namespace Turing.MultiTapeTM
 
 open Relation Set
@@ -79,43 +104,25 @@ def visitTimes (cfg : Cfg k Symbol State input) (p : ℕ) : Set ℕ :=
 lemma mem_visitTimes {cfg : Cfg k Symbol State input} {p t : ℕ} :
     t ∈ tm.visitTimes cfg p ↔ (tm.runFrom cfg t).inputPos.val = p := Iff.rfl
 
-/-- The storages encountered at input position `p`, in chronological order. -/
+open Classical in
+/-- The storages encountered at input position `p`, in chronological order.
+Entry `n` corresponds to the visit with exactly `n` earlier visits. -/
 noncomputable def visitSequence (cfg : Cfg k Symbol State input) (p : ℕ) :
-    Stream'.Seq (Storage Symbol State k) := by
-  classical
+    Stream'.Seq (Storage Symbol State k) :=
   let s := tm.visitTimes cfg p
-  refine ⟨fun n => if (n : ℕ∞) < s.encard then
-    some (tm.runFrom cfg (Nat.nth (· ∈ s) n)).storage else none, ?_⟩
-  intro n
-  simp only [ite_eq_right_iff, Option.some_ne_none, imp_false, not_lt]
-  exact fun h => h.trans (by exact_mod_cast Nat.le_succ n)
+  Stream'.Seq.map (fun t : s ↦ (tm.runFrom cfg t.val).storage)
+    ⟨Function.partialInv (fun t : s ↦ Nat.count (· ∈ s) t.val), Nat.isSeq_partialInv_count s⟩
 
+open Classical in
 /-- An entry records a visit's storage, indexed by the number of earlier visits. -/
 private lemma get?_visitSequence {cfg : Cfg k Symbol State input} {p n : ℕ}
-    {storage : Storage Symbol State k}
-    [DecidablePred (· ∈ tm.visitTimes cfg p)] :
+    {storage : Storage Symbol State k} :
     (tm.visitSequence cfg p).get? n = some storage ↔
       ∃ t ∈ tm.visitTimes cfg p, Nat.count (· ∈ tm.visitTimes cfg p) t = n ∧
         (tm.runFrom cfg t).storage = storage := by
   classical
-  let s := tm.visitTimes cfg p
-  change (if (n : ℕ∞) < s.encard then
-    some (tm.runFrom cfg (Nat.nth (· ∈ s) n)).storage else none) = some storage ↔
-      ∃ t ∈ s, Nat.count (· ∈ s) t = n ∧ (tm.runFrom cfg t).storage = storage
-  constructor
-  · intro h
-    have hn : (n : ℕ∞) < s.encard := by grind
-    have hn' (hf : s.Finite) : n < hf.toFinset.card := by
-      simpa only [hf.encard_eq_coe_toFinset_card, ENat.natCast_lt_natCast] using hn
-    refine ⟨Nat.nth (· ∈ s) n, Nat.nth_mem n hn', Nat.count_nth hn', ?_⟩
-    simpa [hn] using h
-  · rintro ⟨t, ht, rfl, rfl⟩
-    have hn : (Nat.count (· ∈ s) t : ℕ∞) < s.encard := by
-      by_cases hf : s.Finite
-      · simpa only [hf.encard_eq_coe_toFinset_card, ENat.natCast_lt_natCast] using
-          Nat.count_lt_card (p := (· ∈ s)) hf ht
-      · simp [Set.Infinite.encard_eq hf]
-    simp [hn, Nat.nth_count ht]
+  simp only [visitSequence, Stream'.Seq.map, Stream'.Seq.get?, Stream'.map, Stream'.get,
+    Option.map_eq_some_iff, Nat.partialInv_count_eq_some, Subtype.exists, exists_prop]
 
 /-- Between consecutive visits, the input head stays on the side chosen by its first step. -/
 private lemma inputPos_bounds_of_covBy {cfg : Cfg k Symbol State input} {p t : ℕ}
@@ -499,20 +506,26 @@ theorem exists_shorter_input_storage [Fintype Symbol] [Fintype State] {s : ℕ}
   let : Fintype S := (Set.finite_of_encard_le_coe hbound).fintype
   have hcard : Fintype.card S ≤ B := by
     exact_mod_cast (Set.coe_fintypeCard (s := S)).le.trans hbound
-  let seq (p : ℕ) : Stream'.Seq S := ⟨fun n =>
-    if (n : ℕ∞) < (tm.visitTimes (tm.initCfg input) p).encard then
-      some ⟨(tm.runFrom (tm.initCfg input)
-        (Nat.nth (· ∈ tm.visitTimes (tm.initCfg input) p) n)).storage, ⟨_, rfl⟩⟩ else none, by
-    intro n
-    simp only [ite_eq_right_iff, Option.some_ne_none, imp_false, not_lt]
-    exact fun h => h.trans (by exact_mod_cast Nat.le_succ n)⟩
+  let seq (p : ℕ) : Stream'.Seq S := Stream'.Seq.map
+    (fun u : tm.visitTimes (tm.initCfg input) p ↦
+      ⟨(tm.runFrom (tm.initCfg input) u.val).storage, ⟨u.val, rfl⟩⟩)
+    ⟨Function.partialInv (fun u : tm.visitTimes (tm.initCfg input) p ↦
+      Nat.count (· ∈ tm.visitTimes (tm.initCfg input) p) u.val), Nat.isSeq_partialInv_count _⟩
   have hseq_map (p : ℕ) : (seq p).map Subtype.val = tm.visitSequence (tm.initCfg input) p := by
     ext1 n
-    rw [Stream'.Seq.map_get?]
-    simp only [seq, visitSequence, Stream'.Seq.get?]
-    split <;> rfl
-  have hterm (i : D) : (seq (i.val.val + 1)).TerminatedAt B :=
-    ite_eq_right (not_lt.mpr (tm.encard_visitTimes_le hs (hfinite i)))
+    simp only [seq, visitSequence, Stream'.Seq.map, Stream'.Seq.get?, Stream'.map, Stream'.get,
+      Option.map_map, Function.comp_def]
+  have hterm (i : D) : (seq (i.val.val + 1)).TerminatedAt B := by
+    have hcount (u : tm.visitTimes (tm.initCfg input) (i.val.val + 1)) :
+        Nat.count (· ∈ tm.visitTimes (tm.initCfg input) (i.val.val + 1)) u.val < B := by
+      apply (Nat.count_lt_card (p := (· ∈ tm.visitTimes (tm.initCfg input) (i.val.val + 1)))
+        (hfinite i) u.property).trans_le
+      exact_mod_cast (hfinite i).encard_eq_coe_toFinset_card ▸
+        tm.encard_visitTimes_le hs (hfinite i)
+    simp only [seq, Stream'.Seq.TerminatedAt, Stream'.Seq.map, Stream'.Seq.get?, Stream'.map,
+      Stream'.get, Option.map_eq_none_iff]
+    simpa only [Option.eq_none_iff_forall_not_mem, Option.mem_def, Nat.partialInv_count_eq_some]
+      using fun u ↦ (hcount u).ne
   let p := (tm.runFrom (tm.initCfg input) t).inputPos.val
   -- Matching positions on the same side of `p` give a cut that avoids `p`.
   let f (i : D) : Bool × Symbol × (Fin B → Option S) :=
