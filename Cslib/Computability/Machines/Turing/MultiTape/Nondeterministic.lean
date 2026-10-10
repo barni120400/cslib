@@ -139,7 +139,7 @@ structure ComputationPath (ntm : MultiTapeNTM k Symbol State) (input : List Symb
 
 namespace ComputationPath
 
-instance : CoeFun (ntm.ComputationPath input)
+instance instCoeFun : CoeFun (ntm.ComputationPath input)
     (fun p ↦ Fin (p.length + 1) → Cfg k Symbol State input) :=
   ⟨fun p ↦ p.toRunPath⟩
 
