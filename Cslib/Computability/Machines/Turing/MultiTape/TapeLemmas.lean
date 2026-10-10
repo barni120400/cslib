@@ -19,9 +19,9 @@ This file collects lemmas about the set of positions visited by a work-tape head
 positions influence the cells that are modified on a tape. The deterministic lemmas specialize
 these results to the path of the first `t` steps.
 
-`MultiTapeTM.exists_spaceUsedByTape_max` shows that a computation whose space usage is bounded
-attains its per-tape space usage at a single step, which makes a bound that holds at every point
-in time usable as a bound for the whole run.
+`MultiTapeTM.exists_spaceUsedByTape_max` shows that a deterministic computation
+whose space usage is bounded attains its per-tape space usage on a single path. This makes a bound
+on every path from a starting configuration usable as a bound for the whole run.
 
 -/
 
@@ -407,23 +407,39 @@ lemma spaceUsed_mono (tm : MultiTapeTM k Symbol State) (cfg : Cfg k Symbol State
   rw [runPath_eq_take (tm.runPath cfg t) (tm.runPath cfg t') rfl h]
   exact MultiTapeNTM.RunPath.space_take_le _ _
 
-/-- A computation whose total space usage stays below a bound reaches a step `T` at which the space
-usage of *every* tape is maximal. This turns a bound that holds at every point in time into a
-bound for the whole run. -/
-lemma exists_spaceUsedByTape_max (cfg : Cfg k Symbol State input) {s : ℕ}
-    (hs : ∀ t, tm.spaceUsed cfg t ≤ s) :
-    ∃ T, ∀ t i, tm.spaceUsedByTape cfg t i ≤ tm.spaceUsedByTape cfg T i := by
-  -- The space usage of a single tape is bounded, so it attains its supremum at some step `T i`.
-  have h : ∀ i, ∃ Ti, ∀ t, tm.spaceUsedByTape cfg t i ≤ tm.spaceUsedByTape cfg Ti i := by
-    intro i
-    have hbdd : BddAbove (Set.range (tm.spaceUsedByTape cfg · i)) :=
-      ⟨s, by rintro _ ⟨t, rfl⟩; exact (tm.spaceUsedByTape_le_spaceUsed cfg t i).trans (hs t)⟩
-    obtain ⟨Ti, hTi⟩ := Nat.sSup_mem (Set.range_nonempty (tm.spaceUsedByTape cfg · i)) hbdd
-    exact ⟨Ti, fun t => (le_csSup hbdd ⟨t, rfl⟩).trans hTi.ge⟩
-  choose T hT using h
-  -- Monotonicity lets us use a single step that is late enough for every tape.
-  exact ⟨Finset.univ.sup T, fun t i =>
-    (hT i t).trans (tm.spaceUsedByTape_mono cfg i (Finset.le_sup (Finset.mem_univ i)))⟩
+/-- A deterministic computation whose total space usage stays below a bound has a path at which
+*every* tape's space usage is maximal. This turns a bound on every path from an arbitrary starting
+configuration into common per-tape windows for the whole run. -/
+lemma exists_spaceUsedByTape_max (tm : MultiTapeTM k Symbol State)
+    (cfg : Cfg k Symbol State input) {s : ℕ}
+    (hs : ∀ p : tm.RunPath input, p.head = cfg → p.space ≤ s) :
+    ∃ p : tm.RunPath input, p.head = cfg ∧ ∀ q : tm.RunPath input,
+      q.head = cfg → q.spaceUsedByTape ≤ p.spaceUsedByTape := by
+  let paths := {p : tm.RunPath input // p.head = cfg}
+  have hsub (p q : paths) (ht : p.val.length ≤ q.val.length) (i : Fin k) :
+      p.val.visitedByTapeHead i ⊆ q.val.visitedByTapeHead i := by
+    simpa only [← runPath_eq_take p.val q.val (p.property.trans q.property.symm) ht] using
+      MultiTapeNTM.RunPath.visitedByTapeHead_take_subset q.val
+        ⟨p.val.length, Nat.lt_succ_of_le ht⟩ i
+  -- Choose a path of maximal total space; every shorter path is a prefix of it.
+  have hb : BddAbove (Set.range fun p : paths ↦ p.val.space) :=
+    ⟨s, by rintro _ ⟨p, rfl⟩; exact hs p.val p.property⟩
+  have hn : (Set.range fun p : paths ↦ p.val.space).Nonempty :=
+    ⟨_, ⟨⟨RelSeries.singleton _ cfg, rfl⟩, rfl⟩⟩
+  obtain ⟨p, hp⟩ := Nat.sSup_mem hn hb
+  change p.val.space = _ at hp
+  refine ⟨p.val, p.property, fun q hq i ↦ ?_⟩
+  rcases le_total q.length p.val.length with ht | ht
+  · exact Finset.card_le_card (hsub ⟨q, hq⟩ p ht i)
+  · -- A longer path has the same total space, so none of its per-tape counts can increase.
+    have hle : ∀ j, p.val.spaceUsedByTape j ≤ q.spaceUsedByTape j :=
+      fun j ↦ Finset.card_le_card (hsub p ⟨q, hq⟩ ht j)
+    have hmax : q.space ≤ p.val.space := by
+      rw [hp]
+      exact le_csSup hb ⟨⟨q, hq⟩, rfl⟩
+    have he : ∑ j, p.val.spaceUsedByTape j = ∑ j, q.spaceUsedByTape j :=
+      le_antisymm (Finset.sum_le_sum fun j _ ↦ hle j) hmax
+    exact ((Finset.sum_eq_sum_iff_of_le (fun j _ ↦ hle j)).mp he i (Finset.mem_univ i)).ge
 
 
 /-- Every position the head takes up to step `t` lies in `S`, so the whole visited set does. This
