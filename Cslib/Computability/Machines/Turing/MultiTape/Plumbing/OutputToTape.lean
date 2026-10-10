@@ -121,9 +121,13 @@ public lemma runFrom_outputToTape_withOutput (tm : MultiTapeTM k Symbol State)
 /-- `outputToTape`'s space does not depend on the real output already present. -/
 public lemma spaceUsed_outputToTape_withOutput (tm : MultiTapeTM k Symbol State)
     (c : Cfg (k + 1) Symbol State input) (out : List Symbol) (u : ℕ) :
-    tm.outputToTape.spaceUsed (c.withOutput out) u = tm.outputToTape.spaceUsed c u := by
-  refine spaceUsed_eq_of_workTapePos _ _ u fun m hm => ?_
-  rw [runFrom_outputToTape_withOutput]; rfl
+    (tm.outputToTape.runPath (c.withOutput out) u).space = (tm.outputToTape.runPath c u).space := by
+  apply MultiTapeNTM.RunPath.space_eq_of_workTapePos _ _ (by rfl)
+  intro m
+  change (tm.outputToTape.runFrom (c.withOutput out) m).workTapePos =
+    (tm.outputToTape.runFrom c m).workTapePos
+  rw [runFrom_outputToTape_withOutput]
+  rfl
 
 end WithOutput
 
@@ -138,25 +142,26 @@ does, and the frontier head only walks between the initial and the final length 
 the redirection costs at most the final output length plus one. -/
 public lemma spaceUsed_outputToTape (tm : MultiTapeTM k Symbol State)
     (c : Cfg k Symbol State input) (u : ℕ) :
-    tm.outputToTape.spaceUsed (outCfg c) u ≤
-      tm.spaceUsed c u + ((tm.runFrom c u).output.length + 1) := by
-  let p : tm.RunPath input :=
-    { length := u
-      toFun n := tm.runFrom c n
-      step n := by simp [runFrom, Function.iterate_succ_apply'] }
-  simpa using tm.spaceUsed_le_of_workTapePos_embedding Fin.castSuccEmb c (outCfg c)
-    ((tm.runFrom c u).output.length + 1) (fun m _ j => by simp [runFrom_outCfg])
-    fun l hl => by
+    (tm.outputToTape.runPath (outCfg c) u).space ≤
+      (tm.runPath c u).space + ((tm.runFrom c u).output.length + 1) := by
+  let p := tm.runPath c u
+  simpa using p.space_le_of_workTapePos_embedding (tm.outputToTape.runPath (outCfg c) u)
+    rfl Fin.castSuccEmb ((tm.runFrom c u).output.length + 1)
+    (fun m j ↦ by
+      change (tm.runFrom c m).workTapePos j =
+        (tm.outputToTape.runFrom (outCfg c) m).workTapePos j.castSucc
+      simp [runFrom_outCfg])
+    fun l hl ↦ by
       induction l using Fin.lastCases with
       | last =>
-        refine (spaceUsedByTape_le_card _
-          (S := .Icc (c.output.length : ℤ) (tm.runFrom c u).output.length) fun m hm => ?_).trans
-          (by simp)
-        have h0 : c.output.length ≤ (tm.runFrom c m).output.length := by
-          simpa [p, runFrom] using
-            p.length_output_mono (Fin.zero_le ⟨m, Nat.lt_succ_of_le hm⟩)
+        refine (MultiTapeNTM.RunPath.spaceUsedByTape_le_card _
+          (S := .Icc (c.output.length : ℤ) (tm.runFrom c u).output.length) ?_).trans (by simp)
+        rintro _ ⟨m, rfl⟩
+        have h0 : c.output.length ≤ (tm.runFrom c m).output.length :=
+          p.length_output_mono (Fin.zero_le m)
         have hu : (tm.runFrom c m).output.length ≤ (tm.runFrom c u).output.length :=
-          p.length_output_mono (Fin.le_last ⟨m, Nat.lt_succ_of_le hm⟩)
+          p.length_output_mono (Fin.le_last m)
+        change (tm.outputToTape.runFrom (outCfg c) m).workTapePos _ ∈ _
         simp only [runFrom_outCfg, outCfg_workTapePos_last, Finset.mem_Icc]
         omega
       | cast j => exact absurd ⟨j, rfl⟩ hl
