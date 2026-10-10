@@ -30,6 +30,16 @@ to be joined.
 The shortened run first follows the retained prefix. Between consecutive pairs, the common
 head move selects an excursion on a retained side. Induction over the pairs reaches every
 boundary visit. Subsequent retained steps reach every configuration outside the cut.
+
+The proof adapts Katz's cell-visit crossing-sequence argument. His semi-configurations include
+the scanned input symbol, whose equality is required separately here. Our sequences cover the
+whole run, so counting excludes the final head position after halting. To preserve a chosen
+storage, we select matching positions on the same side of its input-head position.
+
+## References
+
+* [Jonathan Katz, *Notes on Complexity Theory, Lecture 5*][Katz2007],
+  §1.2, Theorem 4, pp. 5-2–5-4.
 -/
 
 @[expose] public section
