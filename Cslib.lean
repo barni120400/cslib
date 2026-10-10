@@ -149,7 +149,6 @@ public import Cslib.Foundations.Data.PFunctor.Free.Fold
 public import Cslib.Foundations.Data.PFunctor.Free.W
 public import Cslib.Foundations.Data.Polynomial.Monotone
 public import Cslib.Foundations.Data.Set.Saturation
-public import Cslib.Foundations.Data.Set.Seq
 public import Cslib.Foundations.Data.StackTape
 public import Cslib.Foundations.Lint.Basic
 public import Cslib.Foundations.Logic.InferenceSystem

@@ -26,6 +26,23 @@ in time usable as a bound for the whole run.
 
 @[expose] public section
 
+namespace Turing.MultiTapeNTM
+
+variable {k : ℕ} {Symbol State : Type*} {input : List Symbol}
+variable {ntm : MultiTapeNTM k Symbol State}
+
+/-- The input head moves by at most one cell in any step. -/
+lemma inputPos_step_le {c c' : Cfg k Symbol State input} (h : ntm.Step c c') :
+    |(c'.inputPos.val : ℤ) - c.inputPos.val| ≤ 1 := by
+  cases hstate : c.state with
+  | none => simp_all [Step]
+  | some q =>
+    simp only [Step, hstate] at h
+    obtain ⟨action, _, rfl⟩ := h
+    exact moveInputPos_sub_le _ _
+
+end Turing.MultiTapeNTM
+
 namespace Turing.MultiTapeTM
 
 variable {k : ℕ}
@@ -33,6 +50,11 @@ variable {State Symbol : Type*}
 variable {input : List Symbol}
 variable {tm : MultiTapeTM k Symbol State}
 variable {cfg : Cfg k Symbol State input}
+
+/-- The input head moves by at most one cell at each step. -/
+lemma inputPos_step_le (cfg : Cfg k Symbol State input) :
+    |((tm.step cfg).inputPos.val : ℤ) - cfg.inputPos.val| ≤ 1 :=
+  MultiTapeNTM.inputPos_step_le (step_iff.mpr rfl)
 
 /-- If the work tape head is not at position `z`, then the tape does not change there. -/
 lemma step_workTapes_eq_of_ne
