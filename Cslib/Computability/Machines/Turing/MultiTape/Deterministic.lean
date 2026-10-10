@@ -163,6 +163,16 @@ lemma step_of_halt {cfg : Cfg k Symbol State input} (h : cfg.state = none) :
     tm.step cfg = cfg :=
   step_iff.mp ((MultiTapeNTM.step_of_halt h).mpr rfl)
 
+/-- A map commuting with deterministic steps preserves the shared step relation. -/
+@[simps]
+def stepHom {k' : ℕ} {State' : Type*} {input' : List Symbol}
+    {tm' : MultiTapeTM k' Symbol State'}
+    (f : Cfg k Symbol State input → Cfg k' Symbol State' input')
+    (h : ∀ c, tm'.step (f c) = f (tm.step c)) :
+    RelHom (tm.Step (input := input)) (tm'.Step (input := input')) where
+  toFun := f
+  map_rel' hc := step_iff.mpr ((h _).trans (congrArg f (step_iff.mp hc)))
+
 /-- The configuration reached by running the Turing machine for `t` steps from `cfg`.
 If the Turing machine halts, it will stay at the halting configuration. -/
 noncomputable def runFrom (cfg : Cfg k Symbol State input) (t : ℕ) : Cfg k Symbol State input :=
@@ -186,6 +196,17 @@ lemma runPath_apply_eq_runFrom (p : tm.RunPath input) (i : Fin (p.length + 1)) :
     rw [Function.iterate_succ_apply', ← runFrom, ← ih]
     exact (step_iff.mp (p.step i)).symm
 
+/-- A step-preserving map carries a deterministic run path to the corresponding run path. -/
+lemma runPath_map {k' : ℕ} {State' : Type*} {input' : List Symbol}
+    {tm' : MultiTapeTM k' Symbol State'}
+    (f : RelHom (tm.Step (input := input)) (tm'.Step (input := input')))
+    (cfg : Cfg k Symbol State input) (t : ℕ) :
+    tm'.runPath (f cfg) t = ((tm.runPath cfg t).map f : tm'.RunPath input') := by
+  symm
+  refine RelSeries.ext rfl ?_
+  funext i
+  exact runPath_apply_eq_runFrom (tm := tm') ((tm.runPath cfg t).map f) i
+
 /-- Of two deterministic paths with the same head, the shorter path is a prefix of the longer. -/
 lemma runPath_eq_take (p q : tm.RunPath input) (hh : p.head = q.head)
     (ht : p.length ≤ q.length) : p = q.take ⟨p.length, Nat.lt_succ_of_le ht⟩ := by
@@ -193,6 +214,16 @@ lemma runPath_eq_take (p q : tm.RunPath input) (hh : p.head = q.head)
   funext i
   simp only [Function.comp_apply, runPath_apply_eq_runFrom, RelSeries.head_take, hh]
   rfl
+
+/-- Running for `a + b` steps joins the first `a` steps to the next `b` steps. -/
+lemma runPath_add (cfg : Cfg k Symbol State input) (a b : ℕ) :
+    tm.runPath cfg (a + b) = (tm.runPath cfg a).smash (tm.runPath (tm.runFrom cfg a) b) rfl := by
+  symm
+  refine RelSeries.ext rfl ?_
+  funext i
+  change _ = tm.runFrom cfg i
+  rw [runPath_apply_eq_runFrom]
+  exact congrArg (fun c ↦ tm.runFrom c i) (RelSeries.head_smash rfl)
 
 /-- A deterministic computation ends at the corresponding iterate. -/
 lemma computationPath_last_eq_runFrom (p : tm.ComputationPath input) :

@@ -127,6 +127,12 @@ lemma length_output_mono (p : ntm.RunPath input) :
   have : ntm.Step (p i.castSucc) (p i.succ) := p.step i
   grind [Step, Action.apply_output]
 
+/-- The output at any configuration on a path is no longer than its final output. -/
+lemma length_output_le_last (p : ntm.RunPath input) {c : Cfg k Symbol State input}
+    (hc : c ∈ p) : c.output.length ≤ p.last.output.length := by
+  obtain ⟨i, rfl⟩ := hc
+  exact p.length_output_mono (Fin.le_last i)
+
 /-- Once a run path is halted, its configuration stays unchanged. -/
 lemma last_eq_of_head_halted (p : ntm.RunPath input) (h : p.head.Halted) : p.last = p.head := by
   induction p using RelSeries.inductionOn' with
