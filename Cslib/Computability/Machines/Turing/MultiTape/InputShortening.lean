@@ -24,6 +24,8 @@ the second reaches every space configuration reached by the original run while i
 is outside the deleted interval. This property is the main ingredient in the proof of
 `SPACE(o(log log n)) = SPACE(1)`.
 
+The proof idea follows [Katz2007], §1.2, Theorem 4.
+
 ## Main definitions
 
 * `visitTimes`: all times at which a run's input head is at a given position.
@@ -53,12 +55,6 @@ is outside the deleted interval. This property is the main ingredient in the pro
 * `encard_visitTimes_le`: the number of visits to such a position is at most `storageBound`.
 * `exists_shorter_input_storage`: a sufficiently long input to a halting space-bounded machine
   has a shorter input whose run reaches a chosen storage from the original run.
-
-## Implementation notes
-
-The proof adapts Katz's cell-visit crossing-sequence argument. His semi-configurations include
-the scanned input symbol, whose equality is required separately here. Our sequences cover the
-whole run, so counting excludes the final head position after halting.
 
 ## References
 
