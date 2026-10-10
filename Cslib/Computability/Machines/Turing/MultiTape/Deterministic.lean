@@ -58,6 +58,15 @@ def MultiTapeNTM.IsDeterministic (ntm : MultiTapeNTM k Symbol State) : Prop :=
   ∀ (q : State) (input : Option Symbol) (work : Fin k → Option Symbol),
     ∃! action, ntm.Tr q input work action
 
+/-- Adapting a deterministic machine gives a deterministic machine. -/
+lemma MultiTapeNTM.IsDeterministic.adapt {ntm : MultiTapeNTM k Symbol State} {k' : ℕ}
+    {readIn : Option Symbol → (Fin k' → Option Symbol) → Option Symbol}
+    {readWork : (Fin k' → Option Symbol) → Fin k → Option Symbol}
+    {act : (Fin k' → Option Symbol) → Action k Symbol State → Action k' Symbol State}
+    (h : ntm.IsDeterministic) : (ntm.adapt readIn readWork act).IsDeterministic := fun q inp work =>
+  (h q (readIn inp work) (readWork work)).elim fun a ha hu =>
+    ⟨act work a, ⟨a, ha, rfl⟩, fun _ ⟨b, hb, hab⟩ => hab ▸ congrArg (act work) (hu b hb)⟩
+
 /--
 A multi-tape Turing machine with `k` work tapes over the alphabet of `Option Symbol` (where `none`
 is the blank tape symbol). Note that it is not required that `Symbol` or `State` are finite
@@ -170,16 +179,6 @@ public lemma step_workTapePos_of_state {cfg : Cfg k Symbol State input} {q : Sta
 lemma step_of_halt {cfg : Cfg k Symbol State input} (h : cfg.state = none) :
     tm.step cfg = cfg :=
   step_iff.mp ((MultiTapeNTM.step_of_halt h).mpr rfl)
-
-/-- A configuration map semiconjugating the step functions is a homomorphism of the step relations,
-so it maps run paths with `RelSeries.map`. -/
-def stepHom {k' : ℕ} {State' : Type*} {input' : List Symbol}
-    {tm' : MultiTapeTM k' Symbol State'}
-    (f : Cfg k Symbol State input → Cfg k' Symbol State' input')
-    (h : Function.Semiconj f tm.step tm'.step) :
-    (tm.stepRel input).Hom (tm'.stepRel input') where
-  toFun := f
-  map_rel' hc := step_iff.mpr ((h _).symm.trans (congrArg f (step_iff.mp hc)))
 
 end MultiTapeTM
 
