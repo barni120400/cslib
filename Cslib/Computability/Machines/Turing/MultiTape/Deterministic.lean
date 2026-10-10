@@ -30,9 +30,8 @@ We define a number of structures and concepts related to multi-tape Turing machi
     symbols to exactly one action
 * `MultiTapeTM`: the TM itself
 * `tr`, `ofTr`: the derived transition function and construction from a function
-* `step`, `runFrom`: the successor configuration and iteration of this function
+* `step`, `runFrom`, `runPath`: the successor configuration, its iterates and their run path
 * `HaltsAt`: the run from a configuration halts at exactly a given step
-* `spaceUsed`: the number of tape cells visited by work tape heads, our main space measure
 * `Computes`: the machine halts with the given output on an input
 * `ComputesInTimeAndSpace`: the machine produces an output within the shared resource bounds
 * `ComputesFunInTimeAndSpace`: function computation with the shared time and space bounds
@@ -290,51 +289,7 @@ lemma existsUnique_haltsAt {input : List Symbol} {cfg : Cfg k Symbol State input
   let ⟨u, _, hu⟩ := exists_haltsAt hhalt
   ⟨u, hu, fun _ h => h.unique hu⟩
 
-/-- The work-tape head moves by at most one cell in a single step. -/
-lemma workTapePos_step_le (c : Cfg k Symbol State input) (i : Fin k) :
-    |(tm.step c).workTapePos i - c.workTapePos i| ≤ 1 := by
-  cases hstate : c.state with
-  | none => simp [step_of_halt hstate]
-  | some q => rw [step_of_state hstate]; exact workTapePos_apply_le _ c i
-
 end Cfg
-
-section Space
-/-! Now we define space usage and add some helper lemmas. -/
-
-/-- The set of positions visited by the head of work tape `i` in the computation starting from
-configuration `cfg` up to step `t`. -/
-noncomputable def visitedByTapeHead (cfg : Cfg k Symbol State input) (t : ℕ) (i : Fin k) :
-    Finset ℤ :=
-  (tm.runPath cfg t).visitedByTapeHead i
-
-/--
-The number of work tape cells visited by the head of tape `i` in the computation starting from
-configuration `cfg` up to step `t`.
--/
-noncomputable def spaceUsedByTape (cfg : Cfg k Symbol State input) (t : ℕ) (i : Fin k) : ℕ :=
-  (tm.runPath cfg t).spaceUsedByTape i
-
-/--
-The number of work tape cells visited by a computation starting from configuration
-`cfg` up to step `t`.
--/
-noncomputable def spaceUsed (cfg : Cfg k Symbol State input) (t : ℕ) : ℕ :=
-  (tm.runPath cfg t).space
-
-/-- A zero-tape Turing machine uses zero space. -/
-@[simp]
-lemma spaceUsed_zero_tapes_eq_zero (cfg : Cfg k Symbol State input) (t : ℕ) (h_zero : k = 0) :
-    tm.spaceUsed cfg t = 0 := by
-  subst h_zero
-  exact MultiTapeNTM.RunPath.space_zero_tapes _
-
-/-- Each tape's space usage is bounded by the total space used. -/
-lemma spaceUsedByTape_le_spaceUsed (cfg : Cfg k Symbol State input) (t : ℕ) (i : Fin k) :
-    tm.spaceUsedByTape cfg t i ≤ tm.spaceUsed cfg t :=
-  (tm.runPath cfg t).spaceUsedByTape_le_space i
-
-end Space
 
 /-- In `t` steps the input head moves at most `t` positions to the right. -/
 lemma inputPos_runFrom_le (tm : MultiTapeTM k Symbol State)

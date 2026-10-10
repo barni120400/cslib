@@ -181,18 +181,21 @@ does; the two extra tapes (virtual input, flag) each move only with the simulate
 which stays within `[-1, input.length]` — so they add at most `2 * (input.length + 2)`. -/
 public lemma spaceUsed_inputFromTape (tm : MultiTapeTM k Symbol State) (mark : Symbol)
     (c : Cfg k Symbol State input) (outerInput : List Symbol) (n : ℕ) :
-    tm.inputFromTape.spaceUsed (inCfg mark c outerInput) n ≤
-      tm.spaceUsed c n + 2 * (input.length + 2) := by
-  simpa using tm.spaceUsed_le_of_workTapePos_embedding (Fin.castAddEmb 2) c
-    (inCfg mark c outerInput) (input.length + 2) (fun m _ j => by simp [runFrom_inCfg])
-    fun l hl => by
+    (tm.inputFromTape.runPath (inCfg mark c outerInput) n).space ≤
+      (tm.runPath c n).space + 2 * (input.length + 2) := by
+  let f := stepHom (input := input) (inCfg mark · outerInput) (step_inCfg tm mark · outerInput)
+  simpa [← runPath_map f c n, f] using (tm.runPath c n).space_map_le f (Fin.castAddEmb 2)
+    (input.length + 2) (fun c _ j ↦ inCfg_workTapePos_castAdd c j)
+    fun l hl ↦ by
       induction l using Fin.addCases with
       | left j => exact absurd ⟨j, rfl⟩ hl
       | right i =>
-        refine (spaceUsedByTape_le_card _ (S := .Icc (-1) input.length) fun m _ => ?_).trans
-          (by rw [Int.card_Icc]; omega)
-        have := (tm.runFrom c m).inputPos.isLt
-        simp only [runFrom_inCfg, inCfg_workTapePos_natAdd, Finset.mem_Icc]
+        refine ((tm.runPath c n).spaceUsedByTape_map_le_card f
+          (S := .Icc (-1) input.length) ?_).trans (by rw [Int.card_Icc]; omega)
+        intro c _
+        have := c.inputPos.isLt
+        change (inCfg mark c outerInput).workTapePos _ ∈ _
+        simp only [inCfg_workTapePos_natAdd, Finset.mem_Icc]
         omega
 
 end Projections
