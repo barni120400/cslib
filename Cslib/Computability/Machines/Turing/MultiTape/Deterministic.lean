@@ -8,7 +8,6 @@ module
 
 public import Mathlib.Algebra.Order.Group.Abs
 public import Mathlib.Algebra.Order.Group.Int
-public import Mathlib.Algebra.Order.BigOperators.Group.Finset
 public import Mathlib.Basic.Sign.Defs
 public import Cslib.Computability.Machines.Turing.MultiTape.Space
 
@@ -169,6 +168,13 @@ If the Turing machine halts, it will stay at the halting configuration. -/
 noncomputable def runFrom (cfg : Cfg k Symbol State input) (t : ℕ) : Cfg k Symbol State input :=
   tm.step^[t] cfg
 
+/-- The path of the first `t` steps from `cfg`. Its last configuration is `tm.runFrom cfg t`. -/
+noncomputable def runPath (tm : MultiTapeTM k Symbol State)
+    (cfg : Cfg k Symbol State input) (t : ℕ) : tm.RunPath input where
+  length := t
+  toFun n := tm.runFrom cfg n
+  step n := by simp [step_iff, runFrom, Function.iterate_succ_apply']
+
 /-- Every path of a deterministic machine follows its iterated step function. -/
 lemma runPath_apply_eq_runFrom (p : tm.RunPath input) (i : Fin (p.length + 1)) :
     p i = tm.runFrom p.head i := by
@@ -179,6 +185,14 @@ lemma runPath_apply_eq_runFrom (p : tm.RunPath input) (i : Fin (p.length + 1)) :
     change p.toFun i.succ = tm.step^[i.val + 1] p.head
     rw [Function.iterate_succ_apply', ← runFrom, ← ih]
     exact (step_iff.mp (p.step i)).symm
+
+/-- Of two deterministic paths with the same head, the shorter path is a prefix of the longer. -/
+lemma runPath_eq_take (p q : tm.RunPath input) (hh : p.head = q.head)
+    (ht : p.length ≤ q.length) : p = q.take ⟨p.length, Nat.lt_succ_of_le ht⟩ := by
+  refine RelSeries.ext rfl ?_
+  funext i
+  simp only [Function.comp_apply, runPath_apply_eq_runFrom, RelSeries.head_take, hh]
+  rfl
 
 /-- A deterministic computation ends at the corresponding iterate. -/
 lemma computationPath_last_eq_runFrom (p : tm.ComputationPath input) :
@@ -261,34 +275,33 @@ section Space
 configuration `cfg` up to step `t`. -/
 noncomputable def visitedByTapeHead (cfg : Cfg k Symbol State input) (t : ℕ) (i : Fin k) :
     Finset ℤ :=
-  Finset.univ.image fun n : Fin (t + 1) => (tm.runFrom cfg n).workTapePos i
+  (tm.runPath cfg t).visitedByTapeHead i
 
 /--
 The number of work tape cells visited by the head of tape `i` in the computation starting from
 configuration `cfg` up to step `t`.
 -/
 noncomputable def spaceUsedByTape (cfg : Cfg k Symbol State input) (t : ℕ) (i : Fin k) : ℕ :=
-  (tm.visitedByTapeHead cfg t i).card
+  (tm.runPath cfg t).spaceUsedByTape i
 
 /--
 The number of work tape cells visited by a computation starting from configuration
 `cfg` up to step `t`.
 -/
 noncomputable def spaceUsed (cfg : Cfg k Symbol State input) (t : ℕ) : ℕ :=
-  ∑ i, tm.spaceUsedByTape cfg t i
+  (tm.runPath cfg t).space
 
 /-- A zero-tape Turing machine uses zero space. -/
 @[simp]
 lemma spaceUsed_zero_tapes_eq_zero (cfg : Cfg k Symbol State input) (t : ℕ) (h_zero : k = 0) :
     tm.spaceUsed cfg t = 0 := by
-  unfold spaceUsed
   subst h_zero
-  simp
+  exact MultiTapeNTM.RunPath.space_zero_tapes _
 
 /-- Each tape's space usage is bounded by the total space used. -/
 lemma spaceUsedByTape_le_spaceUsed (cfg : Cfg k Symbol State input) (t : ℕ) (i : Fin k) :
     tm.spaceUsedByTape cfg t i ≤ tm.spaceUsed cfg t :=
-  Finset.single_le_sum (fun _ _ => Nat.zero_le _) (Finset.mem_univ i)
+  (tm.runPath cfg t).spaceUsedByTape_le_space i
 
 end Space
 
