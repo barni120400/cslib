@@ -19,19 +19,17 @@ public import Mathlib.Order.Interval.Basic
 Consider a deterministic Turing machine and an input on which it halts. For each input cell,
 we record the sequence of space configurations (`Storage`) at the times when the input head
 visits that cell. We show that if two distinct cells contain the same symbol and have the same
-sequence, deleting the symbols after the first cell through the second produces a shorter input.
-The run on this shorter input reaches every space configuration reached by the original run
-while its input head is outside the deleted interval. This property is the main ingredient in
-the proof of `SPACE(o(log log n)) = SPACE(1)`.
+sequence, then the run on the input obtained by deleting the symbols after the first cell through
+the second reaches every space configuration reached by the original run while its input head
+is outside the deleted interval. This property is the main ingredient in the proof of
+`SPACE(o(log log n)) = SPACE(1)`.
 
 ## Main definitions
 
 * `visitTimes`: all times at which a run's input head is at a given position.
-* `visitSequence`: the finite or infinite sequence of space configurations at those times, in
-  chronological order.
+* `visitSequence`: the sequence of space configurations at those times, in chronological order.
 * `InputCut`: an ordered pair of input-symbol indices describing the endpoints of a deletion.
-* `InputCut.left`, `InputCut.right`: the corresponding input-head positions, offset by one for
-  the left endmarker.
+* `InputCut.left`, `InputCut.right`: the corresponding input-head positions.
 * `InputCut.shortened`: the input with the symbols after the first endpoint through the second
   deleted.
 * `InputCut.position`: collapses the deleted interval to its left endpoint and shifts later
@@ -110,9 +108,7 @@ private lemma get?_visitSequence {cfg : Cfg k Symbol State input} {p n : ℕ}
       ∃ t ∈ s, Nat.count (· ∈ s) t = n ∧ (tm.runFrom cfg t).storage = storage
   constructor
   · intro h
-    have hn : (n : ℕ∞) < s.encard := by
-      by_contra hn
-      simp [hn] at h
+    have hn : (n : ℕ∞) < s.encard := by grind
     have hn' (hf : s.Finite) : n < hf.toFinset.card := by
       simpa only [hf.encard_eq_coe_toFinset_card, ENat.natCast_lt_natCast] using hn
     refine ⟨Nat.nth (· ∈ s) n, Nat.nth_mem n hn', Nat.count_nth hn', ?_⟩
@@ -168,36 +164,26 @@ def SameSide (p q : ℕ) : Prop :=
 lemma sameSide_of_not_boundary {p q : ℕ} (hstep : |(q : ℤ) - p| ≤ 1)
     (hq : q ≤ cut.left ∨ cut.right ≤ q) (hne : ¬ (q = cut.left ∨ q = cut.right)) :
     cut.SameSide p q := by
-  rw [abs_le] at hstep
-  dsimp only [SameSide]
-  omega
+  grind [SameSide, abs_le]
 
 /-- Adding back the deleted cells recovers the original input length. -/
 private lemma length_shortened_add :
     cut.shortened.length + (cut.right - cut.left) = input.length := by
-  simp only [shortened, List.length_append, List.length_take, List.length_drop]
-  dsimp only [left, right]
-  have := cut.fst_le_snd
-  omega
+  grind [shortened, left, right, cut.fst_le_snd]
 
 /-- Positions at or left of the cut do not move. -/
 private lemma position_left {p : ℕ} (hp : p ≤ cut.left) : cut.position p = p := by
-  simp only [position, left, right] at *
-  have := cut.fst_le_snd
-  omega
+  grind [position, left, right, cut.fst_le_snd]
 
 /-- Positions at or right of the cut shift by the number of deleted cells. -/
 private lemma position_right {p : ℕ} (hp : cut.right ≤ p) :
     cut.position p = p - (cut.right - cut.left) := by
-  simp only [position, left, right] at *
-  have := cut.fst_le_snd
-  omega
+  grind [position, left, right, cut.fst_le_snd]
 
 /-- The cut preserves the left endmarker and maps positive positions to positive positions. -/
 @[simp]
 lemma position_eq_zero {p : ℕ} : cut.position p = 0 ↔ p = 0 := by
-  simp only [position, left, right]
-  omega
+  grind [position, left]
 
 /-- Indexing the retained prefix is unchanged. -/
 lemma getElem?_left {i : ℕ} (hi : i < cut.left) : cut.shortened[i]? = input[i]? := by
@@ -220,17 +206,9 @@ lemma getElem?_boundary (hsym : input[cut.fst] = input[cut.snd]) :
 lemma getElem?_position (hsym : input[cut.fst] = input[cut.snd]) {p : ℕ}
     (hp : p ≤ cut.left ∨ cut.right ≤ p) :
     cut.shortened[cut.position p - 1]? = input[p - 1]? := by
-  have ha : 0 < cut.left := Nat.succ_pos _
-  have hab : cut.left ≤ cut.right := Nat.add_le_add_right cut.fst_le_snd 1
-  rcases hp with hp | hp
-  · rw [cut.position_left hp]
-    exact cut.getElem?_left (by omega)
-  · rw [cut.position_right hp]
-    by_cases heq : p = cut.right
-    · subst p
-      rw [Nat.sub_sub_self hab]
-      exact cut.getElem?_boundary hsym
-    · convert cut.getElem?_right (p - cut.right - 1) using 2 <;> omega
+  have := cut.getElem?_right (p - cut.right - 1)
+  grind [position_left, position_right, getElem?_left, getElem?_boundary, left, right,
+    cut.fst_le_snd]
 
 /-- On either retained side, mapping positions commutes with an input-head move. -/
 lemma position_moveInputPos {p : Fin (input.length + 2)}
@@ -238,18 +216,8 @@ lemma position_moveInputPos {p : Fin (input.length + 2)}
     (hside : cut.SameSide p.val (moveInputPos p m).val) :
     cut.position (moveInputPos p m).val = (moveInputPos p' m).val := by
   have hlen := cut.length_shortened_add
-  have hbounds : 0 < cut.left ∧ cut.left ≤ cut.right ∧ cut.right ≤ input.length :=
-    ⟨Nat.succ_pos _, Nat.add_le_add_right cut.fst_le_snd 1, cut.snd.isLt⟩
-  rcases hside with ⟨hc, hn⟩ | ⟨hc, hn⟩
-  · rw [cut.position_left hc] at hp
-    rw [cut.position_left hn]
-    exact moveInputPos_same _ _ hp.symm (by omega) (by omega) m
-  · rw [cut.position_right hc] at hp
-    rw [cut.position_right hn]
-    rw [moveInputPos_val, moveInputPos_val]
-    have := p.isLt
-    have := p'.isLt
-    cases m <;> simp [SignType.cast] <;> omega
+  cases m <;> grind [SameSide, position, left, right, moveInputPos_val, SignType.cast,
+    cut.fst_le_snd]
 
 /-- The cut maps the input position of the first configuration to that of the second,
 preserving storage. -/
@@ -277,10 +245,7 @@ lemma step {c : Cfg k Symbol State input} {c' : Cfg k Symbol State cut.shortened
     cut.MapsCore (tm.step c) (tm.step c') := by
   obtain ⟨m, hs, hm, hm'⟩ := tm.exists_step_move_of_storage_eq h.2.symm
     (h.inputSymbol hsym (hside.imp And.left And.left))
-  rw [hm] at hside
-  refine ⟨?_, hs.symm⟩
-  rw [hm, hm']
-  exact (cut.position_moveInputPos h.1 m hside).symm
+  grind [MapsCore, position_moveInputPos]
 
 /-- Matching configurations simulate any run segment contained in one retained side. -/
 lemma reaches_runFrom (hsym : input[cut.fst] = input[cut.snd])
@@ -292,13 +257,9 @@ lemma reaches_runFrom (hsym : input[cut.fst] = input[cut.snd])
   induction v, huv using Nat.le_induction with
   | base => exact ⟨c', .refl, h⟩
   | succ v huv ih =>
-    obtain ⟨d, hd, hm⟩ := ih (hside.imp
-      (fun h => h.mono_left (Icc_subset_Icc_right (Nat.le_succ _)))
-      (fun h => h.mono_left (Icc_subset_Icc_right (Nat.le_succ _))))
+    obtain ⟨d, hd, hm⟩ := ih (by grind [MapsTo])
     have hstep : cut.SameSide (tm.runFrom cfg v).inputPos.val
-        (tm.runFrom cfg (v + 1)).inputPos.val :=
-      hside.imp (fun h => ⟨h ⟨huv, by omega⟩, h ⟨by omega, le_rfl⟩⟩)
-        (fun h => ⟨h ⟨huv, by omega⟩, h ⟨by omega, le_rfl⟩⟩)
+        (tm.runFrom cfg (v + 1)).inputPos.val := by grind [MapsTo, SameSide]
     refine ⟨tm.step d, hd.tail (step_iff.mpr rfl), ?_⟩
     simp only [runFrom, Function.iterate_succ_apply'] at hstep ⊢
     exact hm.step hsym hstep
@@ -373,12 +334,7 @@ private lemma mapsCore_iff (u : tm.visitTimes (tm.initCfg input) cut.left)
     {c' : Cfg k Symbol State cut.shortened} :
     cut.MapsCore (tm.runFrom (tm.initCfg input) u) c' ↔
       cut.MapsCore (tm.runFrom (tm.initCfg input) (pairing.orderIso u)) c' := by
-  have hleft := tm.mem_visitTimes.mp u.property
-  have hright := tm.mem_visitTimes.mp (pairing.orderIso u).property
-  have hba : cut.right - (cut.right - cut.left) = cut.left :=
-    Nat.sub_sub_self (Nat.add_le_add_right cut.fst_le_snd 1)
-  simp only [MapsCore, hleft, hright, cut.position_left le_rfl,
-    cut.position_right le_rfl, hba, pairing.storage_eq u]
+  grind [MapsCore, position, left, right, visitTimes, pairing.storage_eq u, cut.fst_le_snd]
 
 /-- At a paired visit, at least one of the two next steps enters a retained side. -/
 private lemma step_sides (u : tm.visitTimes (tm.initCfg input) cut.left) :
@@ -388,16 +344,10 @@ private lemma step_sides (u : tm.visitTimes (tm.initCfg input) cut.left) :
   have hright := tm.mem_visitTimes.mp (pairing.orderIso u).property
   have hsym : (tm.runFrom (tm.initCfg input) u).inputSymbol =
       (tm.runFrom (tm.initCfg input) (pairing.orderIso u)).inputSymbol := by
-    rw [inputSymbolInner cut.fst.val (by simpa [left, Nat.add_comm] using hleft) cut.fst.isLt,
-      inputSymbolInner cut.snd.val (by simpa [right, Nat.add_comm] using hright) cut.snd.isLt]
-    exact congrArg some pairing.symbol_eq
+    grind [Cfg.inputSymbol, left, right, pairing.symbol_eq]
   obtain ⟨m, _, hm, hm'⟩ := tm.exists_step_move_of_storage_eq (pairing.storage_eq u) hsym
-  simp only [runFrom] at hm hm' hleft hright
-  simp only [runFrom, Function.iterate_succ_apply']
-  rw [hm, hm',
-    moveInputPos_val, moveInputPos_val, hleft, hright]
-  have hb : cut.right ≤ input.length := cut.snd.isLt
-  cases m <;> simp [SignType.cast]; omega
+  cases m <;> grind [runFrom, Function.iterate_succ_apply', moveInputPos_val, SignType.cast,
+    left, right]
 
 /-- Between consecutive paired visits, follow the excursion on a retained side. -/
 private lemma reaches_next_visit {u v : tm.visitTimes (tm.initCfg input) cut.left}
@@ -495,10 +445,7 @@ lemma finite_visitTimes_of_halt {cfg : Cfg k Symbol State input} {T p : ℕ}
     (tm.visitTimes cfg p).Finite := by
   apply (Set.finite_Iio T).subset
   intro t ht
-  change t < T
-  by_contra! h
-  exact hp (ht.symm.trans (congrArg (fun c => c.inputPos.val)
-    (tm.runFrom_eq_of_halt cfg h hhalt)))
+  grind [mem_visitTimes, tm.runFrom_eq_of_halt cfg]
 
 /-- At a finitely visited position, two visits cannot have the same storage. -/
 lemma storage_runFrom_injOn_visitTimes {cfg : Cfg k Symbol State input} {p : ℕ}
@@ -513,10 +460,8 @@ lemma storage_runFrom_injOn_visitTimes {cfg : Cfg k Symbol State input} {p : ℕ
   simp only [runFrom] at hcore
   rw [← Function.iterate_add_apply, ← Function.iterate_add_apply,
     Nat.sub_add_cancel haT] at hcore
-  have hvisit : T - a + b ∈ tm.visitTimes cfg p :=
-    (congrArg Fin.val (congrArg Prod.fst hcore)).symm.trans hT
-  have := hmax hvisit (by omega)
-  omega
+  have hvisit : T - a + b ∈ tm.visitTimes cfg p := by grind [mem_visitTimes, Cfg.core, runFrom]
+  grind
 
 /-- A finitely visited position has at most as many visits as there are bounded storages. -/
 lemma encard_visitTimes_le [Fintype Symbol] [Fintype State] {s p : ℕ}
@@ -547,8 +492,7 @@ theorem exists_shorter_input_storage [Fintype Symbol] [Fintype State] {s : ℕ}
     have hbad : Fintype.card {i : Fin input.length //
         i.val + 1 = (tm.runFrom (tm.initCfg input) T).inputPos.val} ≤ 1 := by
       apply Fintype.card_le_one_iff.mpr
-      intro i j
-      exact Subtype.ext (Fin.ext (by have := i.property; have := j.property; omega))
+      grind
     dsimp only [D]
     rw [Fintype.card_subtype_compl, Fintype.card_fin]
     omega
@@ -588,12 +532,10 @@ theorem exists_shorter_input_storage [Fintype Symbol] [Fintype State] {s : ℕ}
     grind
   obtain ⟨hside, hsym, hseq⟩ := (by simpa only [f, Prod.mk.injEq, decide_eq_decide] using hf)
   have hseq' : seq (i.val.val + 1) = seq (j.val.val + 1) := by
-    apply Stream'.Seq.ext
-    intro r
+    ext1 r
     by_cases hr : r < B
     · exact congrFun hseq ⟨r, hr⟩
-    · rw [Stream'.Seq.le_stable _ (Nat.le_of_not_gt hr) (hterm i),
-        Stream'.Seq.le_stable _ (Nat.le_of_not_gt hr) (hterm j)]
+    · grind only [Stream'.Seq.le_stable, Stream'.Seq.TerminatedAt, hterm i, hterm j]
   change i.val.val < j.val.val at hij
   let cut : InputCut input := ⟨⟨i.val, j.val⟩, hij.le⟩
   refine ⟨cut.shortened, ?_, tm.exists_storage_cut cut hsym ?_ ?_⟩

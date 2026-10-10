@@ -354,13 +354,8 @@ lemma inputPos_bounds_of_forall_ne {u v p : ℕ} (huv : u ≤ v)
   | base => exact ⟨id, id⟩
   | succ v huv ih =>
     have hprev := ih fun t hut htv => hno t hut (by omega)
-    have := hno v huv (Nat.lt_succ_self _)
-    have hstep : |((tm.runFrom cfg (v + 1)).inputPos.val : ℤ) -
-        (tm.runFrom cfg v).inputPos.val| ≤ 1 := by
-      simpa only [runFrom, Function.iterate_succ_apply'] using
-        tm.inputPos_step_le (tm.runFrom cfg v)
-    rw [abs_le] at hstep
-    constructor <;> intro h <;> omega
+    have := tm.inputPos_step_le (tm.runFrom cfg v)
+    grind [runFrom, Function.iterate_succ_apply', abs_le]
 
 /-- An input head at or left of `p` at time `u` is still at or left of `p` at time `v`
 if it does not visit `p` during `[u, v)`. -/
