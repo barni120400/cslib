@@ -28,7 +28,6 @@ The proof idea follows [Katz2007], §1.2, Theorem 4.
 
 * `ComputationPath.visitTimes`: the indices of running visits to an input position.
 * `ComputationPath.visitSequence`: the chronological list of space configurations at those visits.
-  Both definitions also apply to nondeterministic computation paths.
 * `InputCut`: an ordered pair of input-symbol indices describing the endpoints of a deletion.
 * `InputCut.left`, `InputCut.right`: the corresponding input-head positions.
 * `InputCut.shortened`: the input with the symbols after the first endpoint through the second
@@ -60,39 +59,37 @@ The proof idea follows [Katz2007], §1.2, Theorem 4.
 
 @[expose] public section
 
-namespace Turing.MultiTapeNTM.ComputationPath
+namespace Turing.MultiTapeTM
 
 variable {k : ℕ} {Symbol State : Type*} {input : List Symbol}
-variable {ntm : MultiTapeNTM k Symbol State}
+variable {tm : MultiTapeTM k Symbol State}
+
+namespace ComputationPath
 
 /-- The indices at which a computation path visits `p` in a running configuration. -/
-def visitTimes (path : ntm.ComputationPath input) (p : ℕ) : Finset (Fin (path.length + 1)) :=
+def visitTimes (path : tm.ComputationPath input) (p : ℕ) : Finset (Fin (path.length + 1)) :=
   Finset.univ.filter fun i ↦ (path i).inputPos.val = p ∧ ¬(path i).Halted
 
 @[simp]
-lemma mem_visitTimes {path : ntm.ComputationPath input} {p : ℕ} {i : Fin (path.length + 1)} :
+lemma mem_visitTimes {path : tm.ComputationPath input} {p : ℕ} {i : Fin (path.length + 1)} :
     i ∈ path.visitTimes p ↔ (path i).inputPos.val = p ∧ ¬(path i).Halted := by
   simp [visitTimes]
 
 /-- The storages at the running visits to `p`, in chronological order. -/
-def visitSequence (path : ntm.ComputationPath input) (p : ℕ) : List (Storage Symbol State k) :=
+def visitSequence (path : tm.ComputationPath input) (p : ℕ) : List (Storage Symbol State k) :=
   ((path.visitTimes p).sort (· ≤ ·)).map fun i ↦ (path i).storage
 
 /-- Earlier occurrences of a position are also running visits. -/
-private lemma mem_visitTimes_of_le {path : ntm.ComputationPath input} {p q : ℕ}
+private lemma mem_visitTimes_of_le {path : tm.ComputationPath input} {p q : ℕ}
     {i j : Fin (path.length + 1)} (hj : j ∈ path.visitTimes q) (hij : i ≤ j)
     (hp : (path i).inputPos.val = p) : i ∈ path.visitTimes p := by
   exact mem_visitTimes.mpr
     ⟨hp, MultiTapeNTM.RunPath.not_halted_of_le path.toRunPath hij (mem_visitTimes.mp hj).2⟩
 
-end Turing.MultiTapeNTM.ComputationPath
+end ComputationPath
 
-namespace Turing.MultiTapeTM
-
-open Relation Set MultiTapeNTM.ComputationPath
-
-variable {k : ℕ} {Symbol State : Type*} {input : List Symbol}
-variable {tm : MultiTapeTM k Symbol State}
+open Relation Set ComputationPath
+open MultiTapeNTM.ComputationPath (apply_zero)
 
 /-- Between consecutive visits, the input head stays on the side chosen by its first step. -/
 private lemma inputPos_bounds_of_covBy {path : tm.ComputationPath input} {p : ℕ}

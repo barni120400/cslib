@@ -32,7 +32,7 @@ We define a number of structures and concepts related to multi-tape Turing machi
 * `MultiTapeTM`: the TM itself
 * `tr`, `ofTr`: the derived transition function and construction from a function
 * `step`, `runFrom`: the successor configuration and iteration of this function
-* `computationPath`: a finite computation prefix from an input
+* `ComputationPath`, `computationPath`: finite computation paths and their construction from an input
 * `Halts`: a computation path on the input ends in a halted configuration
 * `HaltsAt`: the run from a configuration halts at exactly a given step
 * `spaceUsed`: the number of tape cells visited by work tape heads, our main space measure
@@ -76,6 +76,10 @@ instance : CoeOut (MultiTapeTM k Symbol State) (MultiTapeNTM k Symbol State) :=
 namespace MultiTapeTM
 
 variable {tm : MultiTapeTM k Symbol State}
+
+/-- A finite computation path of a deterministic machine, starting at its initial configuration. -/
+abbrev ComputationPath (tm : MultiTapeTM k Symbol State) (input : List Symbol) :=
+  tm.toMultiTapeNTM.ComputationPath input
 
 /-- The unique action related to the given state and read symbols by `Tr`. -/
 noncomputable def tr (tm : MultiTapeTM k Symbol State) (q : State) (input : Option Symbol)
