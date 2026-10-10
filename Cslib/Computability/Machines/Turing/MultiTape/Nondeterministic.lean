@@ -50,6 +50,22 @@ requires every path of at least `t` steps to end in a halted configuration.
 
 @[expose] public section
 
+namespace RelSeries
+
+/-- Joining two paths visits exactly the vertices visited by either path. -/
+lemma mem_smash {α : Type*} {r : SetRel α α} {p q : RelSeries r}
+    (h : p.last = q.head) {x : α} : x ∈ p.smash q h ↔ x ∈ p ∨ x ∈ q := by
+  constructor
+  · rintro ⟨n, rfl⟩
+    induction n using Fin.addCases (m := p.length) (n := q.length + 1) with
+    | left n => exact Or.inl ⟨n.castSucc, by simp [smash]⟩
+    | right n => exact Or.inr ⟨n, by simp [smash]⟩
+  · rintro (⟨n, rfl⟩ | ⟨n, rfl⟩)
+    · exact ⟨n.castLE (by simp), smash_castLE h n⟩
+    · exact ⟨n.natAdd p.length, by simp [smash]⟩
+
+end RelSeries
+
 namespace Turing
 
 variable {k : ℕ} {State Symbol : Type*} {input : List Symbol}
@@ -85,6 +101,12 @@ lemma step_of_halt {c c' : Cfg k Symbol State input} (h : c.Halted) :
     ntm.Step c c' ↔ c' = c := by
   simp [Step, h]
 
+/-- A running configuration steps by an action related to its state and read symbols by `Tr`. -/
+lemma step_of_state {c c' : Cfg k Symbol State input} {q : State} (h : c.state = some q) :
+    ntm.Step c c' ↔
+      ∃ a, ntm.Tr q c.inputSymbol c.workTapeSymbols a ∧ c' = a.apply c := by
+  simp [Step, h]
+
 /-- The initial configuration corresponding to an input string. -/
 @[simp]
 def initCfg (ntm : MultiTapeNTM k Symbol State) (input : List Symbol) :
@@ -104,6 +126,12 @@ lemma length_output_mono (p : ntm.RunPath input) :
   intro i
   have : ntm.Step (p i.castSucc) (p i.succ) := p.step i
   grind [Step, Action.apply_output]
+
+/-- The output at any configuration on a path is no longer than its final output. -/
+lemma length_output_le_last (p : ntm.RunPath input) {c : Cfg k Symbol State input}
+    (hc : c ∈ p) : c.output.length ≤ p.last.output.length := by
+  obtain ⟨i, rfl⟩ := hc
+  exact p.length_output_mono (Fin.le_last i)
 
 /-- Once a run path is halted, its configuration stays unchanged. -/
 lemma last_eq_of_head_halted (p : ntm.RunPath input) (h : p.head.Halted) : p.last = p.head := by

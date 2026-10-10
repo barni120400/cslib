@@ -61,7 +61,7 @@ public theorem transformsTapes_clearWork (w : List Symbol) :
   have h₁ := runFrom_rewindWork_erase (input := input) 1 (tapeOfList w) out rfl
   refine ⟨fun _ => [], [], ?_, ⟨rfl, rfl⟩, ?_⟩
   · exact (runFrom_seq h₀ rfl h₁ rfl).trans (by simp [rightCfg, Cfg.mapState, wordsCfg])
-  · rw [spaceUsed, Fin.sum_univ_one]
+  · rw [spaceUsed, MultiTapeNTM.RunPath.space, Fin.sum_univ_one]
     refine (spaceUsedByTape_le_card _ (S := .Icc (-1) (w.length : ℤ)) fun m _ => ?_).trans
       (by simp; lia)
     refine Finset.mem_Icc.2 (forgetState_runFrom_seq
