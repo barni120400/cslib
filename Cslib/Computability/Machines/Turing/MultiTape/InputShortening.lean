@@ -16,9 +16,14 @@ public import Mathlib.Order.Interval.Basic
 /-!
 # Input shortening for multi-tape Turing machines
 
-We prove that an input to a halting space-bounded machine can be shortened while preserving any
-chosen storage reached by its run, provided the input is sufficiently long relative to the space
-bound. This is the combinatorial step used to show that `o(log log n)` space implies constant space.
+Fix a deterministic machine and an input on which it halts. Choose any moment in this run.
+We show that, if the input is long enough compared with the work-tape space used, we can delete
+some input symbols so that running the same machine on the shorter input reaches the same
+internal state, work-tape contents, and work-head positions as at that moment. Together, these
+form the storage we want to preserve.
+
+This input-shortening result is the combinatorial step in the proof of
+`SPACE(o(log log n)) = SPACE(1)`.
 
 The idea is to find two input cells with the same symbol and the same sequence of visited
 storages. Deleting the symbols after the first cell through the second lets us join the run
