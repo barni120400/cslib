@@ -175,6 +175,26 @@ lemma val_moveInputPos_le {n : ℕ} (pos : Fin (n + 2)) (m : SignType) :
     rcases m with _ | _ | _ <;> simp [SignType.cast]
   omega
 
+/-- Moving the input head adds the direction and clamps the result to the two endmarkers. -/
+lemma moveInputPos_val {n : ℕ} (p : Fin (n + 2)) (m : SignType) :
+    (moveInputPos p m).val = min (n + 1) ((p.val : ℤ) + (m.cast : ℤ)).toNat := by
+  have := val_moveInputPos_eq p m
+  omega
+
+/-- An input-head move changes the position by at most one cell. -/
+lemma moveInputPos_sub_le {n : ℕ} (p : Fin (n + 2)) (m : SignType) :
+    |((moveInputPos p m).val : ℤ) - p.val| ≤ 1 := by
+  rw [moveInputPos_val]
+  have := p.isLt
+  cases m <;> simp [SignType.cast, abs_le] <;> omega
+
+/-- Equal input positions below the right endmarkers remain equal after the same move. -/
+lemma moveInputPos_same {n n' : ℕ} (p : Fin (n + 2)) (p' : Fin (n' + 2))
+    (hp : p.val = p'.val) (hn : p.val ≤ n) (hn' : p'.val ≤ n') (m : SignType) :
+    (moveInputPos p m).val = (moveInputPos p' m).val := by
+  rw [moveInputPos_val, moveInputPos_val]
+  cases m <;> simp [SignType.cast] <;> omega
+
 /-- The symbol currently under the input tape head. -/
 def Cfg.inputSymbol (cfg : Cfg k Symbol State input) : Option Symbol :=
   if h₁ : cfg.inputPos = 0 then none

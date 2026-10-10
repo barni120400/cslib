@@ -32,6 +32,8 @@ We define a number of structures and concepts related to multi-tape Turing machi
 * `MultiTapeTM`: the TM itself
 * `tr`, `ofTr`: the derived transition function and construction from a function
 * `step`, `runFrom`: the successor configuration and iteration of this function
+* `ComputationPath`, `computationPath`: finite computation paths and their construction
+* `Halts`: a computation path on the input ends in a halted configuration
 * `HaltsAt`: the run from a configuration halts at exactly a given step
 * `spaceUsed`: the number of tape cells visited by work tape heads, our main space measure
 * `Computes`: the machine halts with the given output on an input
@@ -74,6 +76,10 @@ instance : CoeOut (MultiTapeTM k Symbol State) (MultiTapeNTM k Symbol State) :=
 namespace MultiTapeTM
 
 variable {tm : MultiTapeTM k Symbol State}
+
+/-- A finite computation path of a deterministic machine, starting at its initial configuration. -/
+abbrev ComputationPath (tm : MultiTapeTM k Symbol State) (input : List Symbol) :=
+  tm.toMultiTapeNTM.ComputationPath input
 
 /-- The unique action related to the given state and read symbols by `Tr`. -/
 noncomputable def tr (tm : MultiTapeTM k Symbol State) (q : State) (input : Option Symbol)
@@ -169,6 +175,14 @@ If the Turing machine halts, it will stay at the halting configuration. -/
 noncomputable def runFrom (cfg : Cfg k Symbol State input) (t : ℕ) : Cfg k Symbol State input :=
   tm.step^[t] cfg
 
+/-- The computation prefix consisting of the first `t` steps on `input`. -/
+noncomputable def computationPath (tm : MultiTapeTM k Symbol State) (input : List Symbol)
+    (t : ℕ) : tm.ComputationPath input where
+  length := t
+  toFun i := tm.runFrom (tm.initCfg input) i
+  step _ := step_iff.mpr (Function.iterate_succ_apply' ..).symm
+  head_eq := rfl
+
 /-- Every path of a deterministic machine follows its iterated step function. -/
 lemma runPath_apply_eq_runFrom (p : tm.RunPath input) (i : Fin (p.length + 1)) :
     p i = tm.runFrom p.head i := by
@@ -180,12 +194,28 @@ lemma runPath_apply_eq_runFrom (p : tm.RunPath input) (i : Fin (p.length + 1)) :
     rw [Function.iterate_succ_apply', ← runFrom, ← ih]
     exact (step_iff.mp (p.step i)).symm
 
+/-- Every configuration of a deterministic computation is the corresponding iterate. -/
+lemma computationPath_apply_eq_runFrom (p : tm.ComputationPath input) (i : Fin (p.length + 1)) :
+    p i = tm.runFrom (tm.initCfg input) i := by
+  simpa only [p.head_eq] using runPath_apply_eq_runFrom p.toRunPath i
+
 /-- A deterministic computation ends at the corresponding iterate. -/
 lemma computationPath_last_eq_runFrom (p : tm.ComputationPath input) :
-    p.last = tm.runFrom (tm.initCfg input) p.time := by
-  simpa only [RelSeries.apply_last, Fin.val_last, p.head_eq,
-    MultiTapeNTM.ComputationPath.time, MultiTapeNTM.RunPath.time] using
-    runPath_apply_eq_runFrom p.toRunPath (Fin.last p.length)
+    p.last = tm.runFrom (tm.initCfg input) p.time :=
+  computationPath_apply_eq_runFrom p (Fin.last p.length)
+
+/-- The machine has a computation path ending in a halted configuration on `input`. -/
+def Halts (tm : MultiTapeTM k Symbol State) (input : List Symbol) : Prop :=
+  ∃ p : tm.ComputationPath input, p.last.Halted
+
+/-- Halting on an input is equivalent to reaching a halted iterate of its initial configuration. -/
+lemma halts_iff_exists_runFrom {input : List Symbol} :
+    tm.Halts input ↔ ∃ t, (tm.runFrom (tm.initCfg input) t).Halted := by
+  constructor
+  · rintro ⟨p, hp⟩
+    exact ⟨p.time, tm.computationPath_last_eq_runFrom p ▸ hp⟩
+  · rintro ⟨t, ht⟩
+    exact ⟨tm.computationPath input t, ht⟩
 
 /-- Nothing changes after the machine has halted. -/
 lemma runFrom_eq_of_halt

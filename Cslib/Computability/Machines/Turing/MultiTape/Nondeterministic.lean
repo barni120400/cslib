@@ -119,6 +119,13 @@ lemma last_eq_of_halted (p : ntm.RunPath input) (i : Fin (p.length + 1))
     (h : (p i).Halted) : p.last = p i := by
   simpa using last_eq_of_head_halted (p.drop i) (by simpa using h)
 
+/-- If a later configuration is running, every earlier configuration is also running. -/
+lemma not_halted_of_le (p : ntm.RunPath input) {i j : Fin (p.length + 1)} (hij : i ≤ j)
+    (hj : ¬(p j).Halted) : ¬(p i).Halted := by
+  intro hi
+  have heq := last_eq_of_halted (p.take j) ⟨i, Nat.lt_succ_of_le hij⟩ hi
+  exact hj (by rwa [← RelSeries.last_take p j, heq])
+
 /-- The number of steps taken by a run path. -/
 def time (p : ntm.RunPath input) : ℕ := p.length
 
@@ -131,6 +138,14 @@ structure ComputationPath (ntm : MultiTapeNTM k Symbol State) (input : List Symb
   head_eq : toRunPath.head = ntm.initCfg input
 
 namespace ComputationPath
+
+instance instCoeFun : CoeFun (ntm.ComputationPath input)
+    (fun p ↦ Fin (p.length + 1) → Cfg k Symbol State input) :=
+  ⟨fun p ↦ p.toRunPath⟩
+
+/-- A computation path starts at the initial configuration. -/
+@[simp]
+lemma apply_zero (p : ntm.ComputationPath input) : p 0 = ntm.initCfg input := p.head_eq
 
 /-- The number of steps taken by a computation path. -/
 def time (p : ntm.ComputationPath input) : ℕ := RunPath.time p.toRunPath

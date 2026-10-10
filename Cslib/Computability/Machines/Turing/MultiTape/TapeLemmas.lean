@@ -13,7 +13,7 @@ public import Mathlib.Order.Lattice.Nat
 /-!
 # Tape head visitation and space-usage lemmas
 
-This file collects lemmas about the set of positions visited by a work-tape head
+This file collects lemmas about the set of positions visited by a work-tape or input-tape head
 (`MultiTapeTM.visitedByTapeHead`) and the resulting space-usage measures
 (`MultiTapeTM.spaceUsedByTape`, `MultiTapeTM.spaceUsed`) and how the tape head positions
 influence the cells that are modified on a tape.
@@ -26,6 +26,23 @@ in time usable as a bound for the whole run.
 
 @[expose] public section
 
+namespace Turing.MultiTapeNTM
+
+variable {k : ℕ} {Symbol State : Type*} {input : List Symbol}
+variable {ntm : MultiTapeNTM k Symbol State}
+
+/-- The input head moves by at most one cell in any step. -/
+lemma inputPos_step_le {c c' : Cfg k Symbol State input} (h : ntm.Step c c') :
+    |(c'.inputPos.val : ℤ) - c.inputPos.val| ≤ 1 := by
+  cases hstate : c.state with
+  | none => simp_all [Step]
+  | some q =>
+    simp only [Step, hstate] at h
+    obtain ⟨action, _, rfl⟩ := h
+    exact moveInputPos_sub_le _ _
+
+end Turing.MultiTapeNTM
+
 namespace Turing.MultiTapeTM
 
 variable {k : ℕ}
@@ -33,6 +50,11 @@ variable {State Symbol : Type*}
 variable {input : List Symbol}
 variable {tm : MultiTapeTM k Symbol State}
 variable {cfg : Cfg k Symbol State input}
+
+/-- The input head moves by at most one cell at each step. -/
+lemma inputPos_step_le (cfg : Cfg k Symbol State input) :
+    |((tm.step cfg).inputPos.val : ℤ) - cfg.inputPos.val| ≤ 1 :=
+  MultiTapeNTM.inputPos_step_le (step_iff.mpr rfl)
 
 /-- If the work tape head is not at position `z`, then the tape does not change there. -/
 lemma step_workTapes_eq_of_ne
@@ -265,6 +287,14 @@ lemma spaceUsed_eq_of_halt (cfg : Cfg k Symbol State input) {τ t : ℕ} (hle : 
   Finset.sum_congr rfl fun i _ =>
     congrArg Finset.card (tm.visitedByTapeHead_eq_of_halt cfg hle hhalt i)
 
+/-- A bound on space at a halting time bounds space throughout the run. -/
+lemma spaceUsed_le_of_halt {cfg : Cfg k Symbol State input} {T s : ℕ}
+    (hhalt : (tm.runFrom cfg T).Halted) (hs : tm.spaceUsed cfg T ≤ s) (t : ℕ) :
+    tm.spaceUsed cfg t ≤ s := by
+  rcases le_total t T with ht | ht
+  · exact (tm.spaceUsed_mono cfg ht).trans hs
+  · rwa [tm.spaceUsed_eq_of_halt cfg ht hhalt]
+
 /-- A run that never moves a work-tape head visits one cell per tape. -/
 lemma spaceUsed_le_of_workTapePos_const (cfg : Cfg k Symbol State input) (u : ℕ)
     (h : ∀ m ≤ u, (tm.runFrom cfg m).workTapePos = cfg.workTapePos) :
@@ -301,5 +331,32 @@ lemma spaceUsed_prependOutput (cfg : Cfg k Symbol State input) (pre : List Symbo
   spaceUsed_eq_of_workTapePos _ _ n fun m _ => by rw [runFrom_prependOutput]; rfl
 
 end PrependOutput
+
+/-- If every work head stays in `[-R, R]`, the run visits at most `k * (2 * R + 1)` cells. -/
+lemma spaceUsed_le_of_workTapePos_natAbs_le (cfg : Cfg k Symbol State input) (T R : ℕ)
+    (h : ∀ t ≤ T, ∀ i, ((tm.runFrom cfg t).workTapePos i).natAbs ≤ R) :
+    tm.spaceUsed cfg T ≤ k * (2 * R + 1) := by
+  calc tm.spaceUsed cfg T
+    _ ≤ ∑ _ : Fin k, (Finset.Icc (-(R : ℤ)) R).card := by
+      apply Finset.sum_le_sum
+      intro i _
+      exact tm.spaceUsedByTape_le_card cfg fun t ht => by
+        have := h t ht i
+        grind
+    _ = k * (2 * R + 1) := by simp [Int.card_Icc]; omega
+
+/-- A path avoiding `p` before its last configuration stays on the side where it starts. -/
+lemma inputPos_bounds_of_forall_ne (path : tm.RunPath input) {p : ℕ}
+    (hno : ∀ i : Fin path.length, (path i.castSucc).inputPos.val ≠ p)
+    (i : Fin (path.length + 1)) :
+    (path.head.inputPos.val ≤ p → (path i).inputPos.val ≤ p) ∧
+      (p ≤ path.head.inputPos.val → p ≤ (path i).inputPos.val) := by
+  induction i using Fin.induction with
+  | zero => exact ⟨id, id⟩
+  | succ i ih =>
+    have hstep := tm.inputPos_step_le (path i.castSucc)
+    rw [step_iff.mp (path.step i)] at hstep
+    have := hno i
+    grind [abs_le]
 
 end Turing.MultiTapeTM
