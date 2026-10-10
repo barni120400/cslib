@@ -122,12 +122,9 @@ public lemma runFrom_outputToTape_withOutput (tm : MultiTapeTM k Symbol State)
 public lemma spaceUsed_outputToTape_withOutput (tm : MultiTapeTM k Symbol State)
     (c : Cfg (k + 1) Symbol State input) (out : List Symbol) (u : ℕ) :
     (tm.outputToTape.runPath (c.withOutput out) u).space = (tm.outputToTape.runPath c u).space := by
-  apply MultiTapeNTM.RunPath.space_eq_of_workTapePos _ _ (by rfl)
-  intro m
-  change (tm.outputToTape.runFrom (c.withOutput out) m).workTapePos =
-    (tm.outputToTape.runFrom c m).workTapePos
-  rw [runFrom_outputToTape_withOutput]
-  rfl
+  let f := stepHom (input := input) (Cfg.withOutput · out) (step_outputToTape_withOutput tm · out)
+  simpa only [← runPath_map f c u, f, stepHom_apply] using
+    (tm.outputToTape.runPath c u).space_map_eq f fun _ _ ↦ rfl
 
 end WithOutput
 
@@ -144,25 +141,21 @@ public lemma spaceUsed_outputToTape (tm : MultiTapeTM k Symbol State)
     (c : Cfg k Symbol State input) (u : ℕ) :
     (tm.outputToTape.runPath (outCfg c) u).space ≤
       (tm.runPath c u).space + ((tm.runFrom c u).output.length + 1) := by
+  let f := stepHom (input := input) outCfg (step_outCfg tm)
   let p := tm.runPath c u
-  simpa using p.space_le_of_workTapePos_embedding (tm.outputToTape.runPath (outCfg c) u)
-    rfl Fin.castSuccEmb ((tm.runFrom c u).output.length + 1)
-    (fun m j ↦ by
-      change (tm.runFrom c m).workTapePos j =
-        (tm.outputToTape.runFrom (outCfg c) m).workTapePos j.castSucc
-      simp [runFrom_outCfg])
+  change _ ≤ p.space + (p.last.output.length + 1)
+  simpa [← runPath_map f c u, f, p] using
+    p.space_map_le f Fin.castSuccEmb (p.last.output.length + 1)
+    (fun c _ j ↦ outCfg_workTapePos_castSucc c j)
     fun l hl ↦ by
       induction l using Fin.lastCases with
       | last =>
-        refine (MultiTapeNTM.RunPath.spaceUsedByTape_le_card _
-          (S := .Icc (c.output.length : ℤ) (tm.runFrom c u).output.length) ?_).trans (by simp)
-        rintro _ ⟨m, rfl⟩
-        have h0 : c.output.length ≤ (tm.runFrom c m).output.length :=
-          p.length_output_mono (Fin.zero_le m)
-        have hu : (tm.runFrom c m).output.length ≤ (tm.runFrom c u).output.length :=
-          p.length_output_mono (Fin.le_last m)
-        change (tm.outputToTape.runFrom (outCfg c) m).workTapePos _ ∈ _
-        simp only [runFrom_outCfg, outCfg_workTapePos_last, Finset.mem_Icc]
+        refine (p.spaceUsedByTape_map_le_card f
+          (S := .Icc 0 (p.last.output.length : ℤ)) ?_).trans (by simp)
+        intro c hc
+        have := p.length_output_le_last hc
+        change (outCfg c).workTapePos _ ∈ _
+        simp only [outCfg_workTapePos_last, Finset.mem_Icc]
         omega
       | cast j => exact absurd ⟨j, rfl⟩ hl
 

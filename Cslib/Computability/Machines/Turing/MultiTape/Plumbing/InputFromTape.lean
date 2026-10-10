@@ -183,22 +183,19 @@ public lemma spaceUsed_inputFromTape (tm : MultiTapeTM k Symbol State) (mark : S
     (c : Cfg k Symbol State input) (outerInput : List Symbol) (n : ℕ) :
     (tm.inputFromTape.runPath (inCfg mark c outerInput) n).space ≤
       (tm.runPath c n).space + 2 * (input.length + 2) := by
-  simpa using (tm.runPath c n).space_le_of_workTapePos_embedding
-    (tm.inputFromTape.runPath (inCfg mark c outerInput) n) rfl (Fin.castAddEmb 2)
-    (input.length + 2) (fun m j ↦ by
-      change (tm.runFrom c m).workTapePos j =
-        (tm.inputFromTape.runFrom (inCfg mark c outerInput) m).workTapePos (Fin.castAdd 2 j)
-      simp [runFrom_inCfg])
+  let f := stepHom (input := input) (inCfg mark · outerInput) (step_inCfg tm mark · outerInput)
+  simpa [← runPath_map f c n, f] using (tm.runPath c n).space_map_le f (Fin.castAddEmb 2)
+    (input.length + 2) (fun c _ j ↦ inCfg_workTapePos_castAdd c j)
     fun l hl ↦ by
       induction l using Fin.addCases with
       | left j => exact absurd ⟨j, rfl⟩ hl
       | right i =>
-        refine (MultiTapeNTM.RunPath.spaceUsedByTape_le_card _
+        refine ((tm.runPath c n).spaceUsedByTape_map_le_card f
           (S := .Icc (-1) input.length) ?_).trans (by rw [Int.card_Icc]; omega)
-        rintro _ ⟨m, rfl⟩
-        have := (tm.runFrom c m).inputPos.isLt
-        change (tm.inputFromTape.runFrom (inCfg mark c outerInput) m).workTapePos _ ∈ _
-        simp only [runFrom_inCfg, inCfg_workTapePos_natAdd, Finset.mem_Icc]
+        intro c _
+        have := c.inputPos.isLt
+        change (inCfg mark c outerInput).workTapePos _ ∈ _
+        simp only [inCfg_workTapePos_natAdd, Finset.mem_Icc]
         omega
 
 end Projections

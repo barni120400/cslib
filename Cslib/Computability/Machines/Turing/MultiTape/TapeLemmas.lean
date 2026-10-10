@@ -231,6 +231,13 @@ lemma space_le_of_workTapePos_embedding {k' : ℕ} {State' : Type*} {input' : Li
 variable {k' : ℕ} {State' : Type*} {input' : List Symbol}
 variable {ntm' : MultiTapeNTM k' Symbol State'}
 
+/-- Bound a tape of a mapped path by checking the images of the source configurations. -/
+lemma spaceUsedByTape_map_le_card (p : ntm.RunPath input)
+    (f : RelHom (ntm.Step (input := input)) (ntm'.Step (input := input')))
+    {i : Fin k'} {S : Finset ℤ} (h : ∀ c ∈ p, (f c).workTapePos i ∈ S) :
+    spaceUsedByTape (p.map f) i ≤ S.card :=
+  spaceUsedByTape_le_card _ fun _ ⟨n, hn⟩ ↦ hn ▸ h (p n) ⟨n, rfl⟩
+
 /-- A simulation preserving head positions preserves space. -/
 lemma space_map_eq {ntm' : MultiTapeNTM k Symbol State'} (p : ntm.RunPath input)
     (f : RelHom (ntm.Step (input := input)) (ntm'.Step (input := input')))
@@ -358,10 +365,8 @@ lemma runFrom_prependOutput (cfg : Cfg k Symbol State input) (pre : List Symbol)
 
 /-- A word already present on the output tape is carried along the whole path. -/
 lemma runPath_prependOutput (cfg : Cfg k Symbol State input) (pre : List Symbol) (n : ℕ) :
-    tm.runPath (cfg.prependOutput pre) n = (tm.runPath cfg n).prependOutput pre := by
-  refine RelSeries.ext rfl ?_
-  funext i
-  exact runFrom_prependOutput cfg pre i
+    tm.runPath (cfg.prependOutput pre) n = (tm.runPath cfg n).prependOutput pre :=
+  runPath_map ⟨_, fun h ↦ h.prependOutput pre⟩ cfg n
 
 end MultiTapeTM
 

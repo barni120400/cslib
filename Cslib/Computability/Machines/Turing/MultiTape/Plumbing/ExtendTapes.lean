@@ -172,18 +172,13 @@ public lemma spaceUsed_embed_le (tm : MultiTapeTM k Symbol State) (e : Fin k ↪
     (extraPos : Fin k' → ℤ) (n : ℕ) :
     ((tm.extendTapes e).runPath (embed e cfg extraTapes extraPos) n).space
       ≤ (tm.runPath cfg n).space + (k' - k) := by
-  simpa using (tm.runPath cfg n).space_le_of_workTapePos_embedding
-    ((tm.extendTapes e).runPath (embed e cfg extraTapes extraPos) n) rfl e 1
-    (fun m j ↦ by
-      change (tm.runFrom cfg m).workTapePos j =
-        ((tm.extendTapes e).runFrom (embed e cfg extraTapes extraPos) m).workTapePos (e j)
-      rw [runFrom_embed, embed_workTapePos_embed])
-    fun l hl ↦ MultiTapeNTM.RunPath.spaceUsedByTape_le_one _ fun _ ⟨m, hm⟩ ↦ by
-      subst hm
-      change ((tm.extendTapes e).runFrom (embed e cfg extraTapes extraPos) m).workTapePos l =
-        (embed e cfg extraTapes extraPos).workTapePos l
-      rw [workTapePos_embed_of_not_range tm e cfg extraTapes extraPos m hl]
-      simp only [embed, partialInv_eq_none e hl]
+  let f := stepHom (input := input) (embed e · extraTapes extraPos)
+    (step_embed tm e · extraTapes extraPos)
+  simpa only [← runPath_map f cfg n, f, stepHom_apply, Nat.mul_one] using
+    (tm.runPath cfg n).space_map_le f e 1
+    (fun c _ j ↦ embed_workTapePos_embed e c extraTapes extraPos j) fun l hl ↦ by
+      simpa using (tm.runPath cfg n).spaceUsedByTape_map_le_card f (S := {extraPos l})
+        (fun c _ ↦ by simp [f, embed, partialInv_eq_none e hl])
 
 end Space
 
