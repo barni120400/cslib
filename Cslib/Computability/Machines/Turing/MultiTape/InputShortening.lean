@@ -16,27 +16,28 @@ public import Mathlib.Order.Interval.Basic
 /-!
 # Input shortening for multi-tape Turing machines
 
-Fix a deterministic machine and an input on which it halts. Choose any moment in this run.
-We show that, if the input is long enough compared with the work-tape space used, we can delete
-some input symbols so that running the same machine on the shorter input reaches the same
-internal state, work-tape contents, and work-head positions as at that moment. Together, these
-form the storage we want to preserve.
+We construct shorter inputs for a halting deterministic Turing machine while preserving space
+configurations from its run. A space configuration records the internal state, work-tape contents,
+and work-head positions, represented here by `Storage`.
+
+The idea is to find two input cells with the same symbol and the same sequence of visited space
+configurations. Deleting the symbols after the first cell through the second lets us join the
+run segments on the retained sides. Every space configuration reached outside the deleted
+interval also occurs in the run on the shorter input, possibly at a different time.
+
+A finitely visited cell cannot repeat a space configuration, so the space bound limits the number
+of visit sequences. On a sufficiently long input, the pigeonhole principle supplies matching
+cells on the same side of any given input-head position. Thus any space configuration reached
+by the original run can be preserved by a suitable cut.
 
 This input-shortening result is the combinatorial step in the proof of
 `SPACE(o(log log n)) = SPACE(1)`.
 
-The idea is to find two input cells with the same symbol and the same sequence of visited
-storages. Deleting the symbols after the first cell through the second lets us join the run
-segments on the retained sides. Choosing both cells on the same side of the input head at the
-chosen time preserves that time's storage. A finitely visited cell cannot repeat a storage,
-so the space bound limits the number of visit sequences. The pigeonhole principle then supplies
-suitable cells on a sufficiently long input.
-
 ## Main definitions
 
 * `visitTimes`: all times at which a run's input head is at a given position.
-* `visitSequence`: the finite or infinite sequence of storages at those times, in chronological
-  order. A storage consists of the state, work tapes, and work-head positions.
+* `visitSequence`: the finite or infinite sequence of space configurations at those times, in
+  chronological order.
 * `InputCut`: an ordered pair of input-symbol indices describing the endpoints of a deletion.
 * `InputCut.left`, `InputCut.right`: the corresponding input-head positions, offset by one for
   the left endmarker.
