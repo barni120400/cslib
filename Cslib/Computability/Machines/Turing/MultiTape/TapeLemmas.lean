@@ -232,6 +232,13 @@ lemma space_le_of_workTapePos_embedding {k' : ℕ} {State' : Type*} {input' : Li
 variable {k' : ℕ} {State' : Type*} {input' : List Symbol}
 variable {ntm' : MultiTapeNTM k' Symbol State'}
 
+/-- Bound a tape of a mapped path by checking the images of the source configurations. -/
+lemma spaceUsedByTape_map_le_card (p : ntm.RunPath input)
+    (f : RelHom (ntm.Step (input := input)) (ntm'.Step (input := input')))
+    {i : Fin k'} {S : Finset ℤ} (h : ∀ c ∈ p, (f c).workTapePos i ∈ S) :
+    spaceUsedByTape (p.map f) i ≤ S.card :=
+  spaceUsedByTape_le_card _ fun _ ⟨n, hn⟩ ↦ hn ▸ h (p n) ⟨n, rfl⟩
+
 /-- A simulation preserving head positions preserves space. -/
 lemma space_map_eq {ntm' : MultiTapeNTM k Symbol State'} (p : ntm.RunPath input)
     (f : RelHom (ntm.Step (input := input)) (ntm'.Step (input := input')))
@@ -462,28 +469,17 @@ lemma spaceUsedByTape_le_one (cfg : Cfg k Symbol State input) {t : ℕ} {i : Fin
 lemma visitedByTapeHead_add (cfg : Cfg k Symbol State input) (a b : ℕ) (i : Fin k) :
     tm.visitedByTapeHead cfg (a + b) i =
       tm.visitedByTapeHead cfg a i ∪ tm.visitedByTapeHead (tm.runFrom cfg a) b i := by
-  have he : (tm.runPath cfg a).smash (tm.runPath (tm.runFrom cfg a) b) rfl =
-      tm.runPath cfg (a + b) := by
-    refine RelSeries.ext rfl ?_
-    funext i
-    change _ = tm.runFrom cfg i
-    rw [runPath_apply_eq_runFrom]
-    exact congrArg (fun c ↦ tm.runFrom c i) (RelSeries.head_smash rfl)
   change (tm.runPath cfg (a + b)).visitedByTapeHead i = _
-  rw [← he]
+  rw [runPath_add]
   exact MultiTapeNTM.RunPath.visitedByTapeHead_smash _ _ rfl i
 
 /-- Splitting a run into two phases can only overcount the cells it visits, since the two phases
 may revisit each other's cells. -/
 lemma spaceUsed_add_le (cfg : Cfg k Symbol State input) (a b : ℕ) :
     tm.spaceUsed cfg (a + b) ≤ tm.spaceUsed cfg a + tm.spaceUsed (tm.runFrom cfg a) b := by
-  change (∑ i, tm.spaceUsedByTape cfg (a + b) i) ≤
-    (∑ i, tm.spaceUsedByTape cfg a i) + ∑ i, tm.spaceUsedByTape (tm.runFrom cfg a) b i
-  rw [← Finset.sum_add_distrib]
-  refine Finset.sum_le_sum fun i _ => ?_
-  change (tm.visitedByTapeHead cfg (a + b) i).card ≤ _
-  rw [visitedByTapeHead_add]
-  exact Finset.card_union_le _ _
+  change (tm.runPath cfg (a + b)).space ≤ _
+  rw [runPath_add]
+  exact MultiTapeNTM.RunPath.space_smash_le _ _ rfl
 
 /-- Space usage only depends on where the work-tape heads are at each step, so two runs whose head
 positions agree use the same space. This is what lets a machine be replaced by a simulation of
@@ -548,10 +544,16 @@ lemma runFrom_prependOutput (cfg : Cfg k Symbol State input) (pre : List Symbol)
   (Function.Semiconj.iterate_right (f := (Cfg.prependOutput · pre))
     (fun c => (step_prependOutput c pre).symm) n cfg).symm
 
+/-- A word already present on the output tape is carried along the whole path. -/
+lemma runPath_prependOutput (cfg : Cfg k Symbol State input) (pre : List Symbol) (n : ℕ) :
+    tm.runPath (cfg.prependOutput pre) n = (tm.runPath cfg n).prependOutput pre :=
+  runPath_map ⟨_, fun h ↦ h.prependOutput pre⟩ cfg n
+
 /-- A word already on the output tape does not affect the space used. -/
 lemma spaceUsed_prependOutput (cfg : Cfg k Symbol State input) (pre : List Symbol) (n : ℕ) :
-    tm.spaceUsed (cfg.prependOutput pre) n = tm.spaceUsed cfg n :=
-  spaceUsed_eq_of_workTapePos _ _ n fun m _ => by rw [runFrom_prependOutput]; rfl
+    tm.spaceUsed (cfg.prependOutput pre) n = tm.spaceUsed cfg n := by
+  change (tm.runPath (cfg.prependOutput pre) n).space = (tm.runPath cfg n).space
+  rw [runPath_prependOutput, MultiTapeNTM.RunPath.space_prependOutput]
 
 end PrependOutput
 
