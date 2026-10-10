@@ -32,7 +32,7 @@ We define a number of structures and concepts related to multi-tape Turing machi
 * `MultiTapeTM`: the TM itself
 * `tr`, `ofTr`: the derived transition function and construction from a function
 * `step`, `runFrom`: the successor configuration and iteration of this function
-* `ComputationPath`, `computationPath`: finite computation paths and their construction from an input
+* `ComputationPath`, `computationPath`: finite computation paths and their construction
 * `Halts`: a computation path on the input ends in a halted configuration
 * `HaltsAt`: the run from a configuration halts at exactly a given step
 * `spaceUsed`: the number of tape cells visited by work tape heads, our main space measure
