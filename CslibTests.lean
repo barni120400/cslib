@@ -1,3 +1,4 @@
+import CslibTests.AlgebraicCircuits
 import CslibTests.Bisimulation
 import CslibTests.BooleanCircuits
 import CslibTests.CCS
