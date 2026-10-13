@@ -196,6 +196,6 @@ public theorem transformsTapes_repeatUntilBlank (i : Fin k) {tm : MultiTapeTM k 
   refine ⟨ws', acc ++ e, ?_, hQ.1, ?_⟩
   · rw [← hr.1, runFrom_head_eq_last r hhalt (by simp [r]; lia), hr.2]
   · rw [← hr.1]
-    exact (spaceUsed_head_le r hhalt _).trans ((hwin.smash hqwin).space_le.trans (by lia))
+    exact (space_head_le r hhalt _).trans ((hwin.smash hqwin).space_le.trans (by lia))
 
 end Turing.MultiTapeTM

@@ -280,8 +280,8 @@ lemma exists_spaceUsedByTape_max (cfg : Cfg k Symbol State input) {s : ℕ}
     (hT i t).trans (tm.spaceUsedByTape_mono cfg i (Finset.le_sup (Finset.mem_univ i)))⟩
 
 /-- The run from the head of a run path that ends halted visits no cell outside the path. -/
-lemma spaceUsed_head_le (p : tm.RunPath input) (h : p.last.Halted) (t : ℕ) :
-    tm.spaceUsed p.head t ≤ p.space := by
+lemma space_head_le (p : tm.RunPath input) (h : p.last.Halted) (t : ℕ) :
+    tm.space p.head t ≤ p.space := by
   rw [p.eq_ofDeterministic] at h ⊢
   exact MultiTapeNTM.RunPath.space_le_of_subset fun _ ⟨m, hm⟩ =>
     hm ▸ runFrom_mem_ofDeterministic h m
@@ -289,11 +289,11 @@ lemma spaceUsed_head_le (p : tm.RunPath input) (h : p.last.Halted) (t : ℕ) :
 /-- A run that starts with every head at cell `0` and uses at most `s` cells keeps its heads
 within `[-s, s]`. -/
 lemma inWindow_ofDeterministic {t s : ℕ} (h0 : ∀ i, cfg.workTapePos i = 0)
-    (hs : tm.spaceUsed cfg t ≤ s) : (MultiTapeNTM.RunPath.ofDeterministic tm cfg t).InWindow s := by
+    (hs : tm.space cfg t ≤ s) : (MultiTapeNTM.RunPath.ofDeterministic tm cfg t).InWindow s := by
   rintro _ ⟨n, rfl⟩ i
   have hz := tm.natAbs_le_spaceUsedByTape_of_mem_visited
     ((tm.mem_visitedByTapeHead (cfg := cfg) (t := t) (i := i)).mpr ⟨n, n.2, rfl⟩)
   rw [h0, sub_zero] at hz
-  exact mem_window.mpr (hz.trans ((tm.spaceUsedByTape_le_spaceUsed cfg t i).trans hs))
+  exact mem_window.mpr (hz.trans ((tm.spaceUsedByTape_le_space cfg t i).trans hs))
 
 end Turing.MultiTapeTM
