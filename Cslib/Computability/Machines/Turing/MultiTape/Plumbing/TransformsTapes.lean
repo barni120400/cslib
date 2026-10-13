@@ -75,7 +75,7 @@ def TransformsTapes (tm : MultiTapeTM k Symbol State)
       tm.runFrom (wordsCfg input (some tm.q₀) ws out) t =
         wordsCfg input none ws' (out ++ emitted) ∧
       Q input ws ws' emitted ∧
-      tm.spaceUsed (wordsCfg input (some tm.q₀) ws out) t ≤ s
+      tm.space (wordsCfg input (some tm.q₀) ws out) t ≤ s
 
 /-- A `TransformsTapes` statement can be read with a stronger precondition, a weaker postcondition
 and larger bounds. -/
@@ -121,7 +121,7 @@ theorem transformsTapes_iff_nil_output {tm : MultiTapeTM k Symbol State}
       List Symbol → Prop} {t s : ℕ} :
     TransformsTapes tm P Q t s ↔ ∀ input ws, P input ws → ∃ ws' emitted,
       tm.runFrom (wordsCfg input (some tm.q₀) ws []) t = wordsCfg input none ws' emitted ∧
-      Q input ws ws' emitted ∧ tm.spaceUsed (wordsCfg input (some tm.q₀) ws []) t ≤ s := by
+      Q input ws ws' emitted ∧ tm.space (wordsCfg input (some tm.q₀) ws []) t ≤ s := by
   constructor
   · intro h input ws hP
     simpa using h input ws [] hP
@@ -133,7 +133,7 @@ theorem transformsTapes_iff_nil_output {tm : MultiTapeTM k Symbol State}
     refine ⟨ws', emitted, ?_, hQ, ?_⟩
     · rw [hcfg, runFrom_map, hrun]
       simp
-    · rwa [hcfg, spaceUsed, ← RunPath.map_ofDeterministic, RunPath.space_map_eq _ _ fun _ _ => rfl]
+    · rwa [hcfg, space, ← RunPath.map_ofDeterministic, RunPath.space_map_eq _ _ fun _ _ => rfl]
 
 section Nop
 
