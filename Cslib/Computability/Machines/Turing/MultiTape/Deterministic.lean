@@ -34,7 +34,6 @@ We define a number of structures and concepts related to multi-tape Turing machi
 * `step`, `runFrom`: the successor configuration and iteration of this function
 * `MultiTapeNTM.RunPath.ofDeterministic`, `MultiTapeNTM.ComputationPath.ofDeterministic`:
     paths of a given length from an arbitrary or initial configuration
-* `spaceUsed`: the space of the path of the first `t` steps from a configuration
 * `Computes`: the machine halts with the given output on an input
 * `ComputesInTimeAndSpace`: the machine produces an output within the shared resource bounds
 * `ComputesFunInTimeAndSpace`: function computation with the shared time and space bounds
@@ -225,6 +224,14 @@ lemma ComputationPath.eq_ofDeterministic (p : tm.ComputationPath input) :
   congr 1
   exact (RunPath.eq_ofDeterministic p).trans (by rw [hp]; rfl)
 
+/-- Deterministic run paths from the same configuration are prefixes of one another: the shorter one
+is the longer one, cut at its length. -/
+lemma RunPath.eq_take {p q : tm.RunPath input} (hhead : p.head = q.head) (h : p.length ≤ q.length) :
+    p = q.take ⟨p.length, Nat.lt_succ_of_le h⟩ := by
+  refine p.eq_ofDeterministic.trans ((eq_ofDeterministic (q.take _)).trans ?_).symm
+  rw [RelSeries.head_take, hhead]
+  rfl
+
 /-- A step-preserving map sends the path of `t` steps from `cfg` to the path of `t` steps from the
 image of `cfg`. -/
 lemma RunPath.map_ofDeterministic {k' : ℕ} {State' : Type*} {input' : List Symbol}
@@ -280,48 +287,6 @@ lemma runsInTime_of_halted {input : List Symbol} {t : ℕ}
   intro p hp
   rw [computationPath_last_eq_runFrom p, runFrom_eq_of_halt _ _ hp h]
   exact h
-
-/-- The work-tape head moves by at most one cell in a single step. -/
-lemma workTapePos_step_le (c : Cfg k Symbol State input) (i : Fin k) :
-    |(tm.step c).workTapePos i - c.workTapePos i| ≤ 1 := by
-  cases hstate : c.state with
-  | none => simp [step_of_halt hstate]
-  | some q => rw [step_of_state hstate]; exact workTapePos_apply_le _ c i
-
-section Space
-/-! Now we define space usage and add some helper lemmas. -/
-
-/-- The set of positions visited by the head of work tape `i` in the computation starting from
-configuration `cfg` up to step `t`. -/
-noncomputable def visitedByTapeHead (cfg : Cfg k Symbol State input) (t : ℕ) (i : Fin k) :
-    Finset ℤ :=
-  Finset.univ.image fun n : Fin (t + 1) => (tm.runFrom cfg n).workTapePos i
-
-/--
-The number of work tape cells visited by the head of tape `i` in the computation starting from
-configuration `cfg` up to step `t`.
--/
-noncomputable def spaceUsedByTape (cfg : Cfg k Symbol State input) (t : ℕ) (i : Fin k) : ℕ :=
-  (tm.visitedByTapeHead cfg t i).card
-
-/-- The number of work tape cells visited in the first `t` steps from `cfg`: the space of the path
-of these steps. -/
-noncomputable abbrev spaceUsed (cfg : Cfg k Symbol State input) (t : ℕ) : ℕ :=
-  (MultiTapeNTM.RunPath.ofDeterministic tm cfg t).space
-
-/-- A zero-tape Turing machine uses zero space. -/
-@[simp]
-lemma spaceUsed_zero_tapes_eq_zero (cfg : Cfg k Symbol State input) (t : ℕ) (h_zero : k = 0) :
-    tm.spaceUsed cfg t = 0 := by
-  subst h_zero
-  simp [MultiTapeNTM.RunPath.space]
-
-/-- Each tape's space usage is bounded by the total space used. -/
-lemma spaceUsedByTape_le_spaceUsed (cfg : Cfg k Symbol State input) (t : ℕ) (i : Fin k) :
-    tm.spaceUsedByTape cfg t i ≤ tm.spaceUsed cfg t :=
-  Finset.single_le_sum (fun _ _ => Nat.zero_le _) (Finset.mem_univ i)
-
-end Space
 
 /-- In `t` steps the input head moves at most `t` positions to the right. -/
 lemma inputPos_runFrom_le (tm : MultiTapeTM k Symbol State)
