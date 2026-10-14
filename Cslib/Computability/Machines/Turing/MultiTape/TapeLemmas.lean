@@ -13,12 +13,15 @@ public import Mathlib.Order.Lattice.Nat
 /-!
 # Head movement along run paths
 
-This file collects how a step moves the work-tape heads and changes the work tapes, and what this
-implies for the cells visited along a run path: a head moves by at most one cell per step, so it
-visits every cell between its first and last positions, and a cell changes only under its head.
+This file collects how a step moves the input and work-tape heads and changes the work tapes, and
+what this implies for the cells visited along a run path: a head moves by at most one cell per
+step, so it visits every cell between its first and last positions, and a cell changes only under
+its head.
 
 `MultiTapeNTM.RunPath.inWindow_of_space_le` keeps the heads of a path that starts at cell `0`
-within the window given by its space.
+within the window given by its space. A machine never reads its output tape, so prepending to the
+output (`MultiTapeNTM.prependOutputHom`) or erasing it (`MultiTapeNTM.eraseOutputHom`) preserves
+steps.
 -/
 
 @[expose] public section
@@ -46,6 +49,18 @@ lemma Step.workTapes_eq_of_ne {c c' : Cfg k Symbol State input} (h : ntm.Step c 
   · obtain ⟨a, _, rfl⟩ := h
     rw [Action.apply_workTapes]
     cases ha : (a.workTapes i).1 <;> simp [ha, hz]
+
+/-- The input head moves by at most one cell in a single step. -/
+lemma Step.inputPos_le {c c' : Cfg k Symbol State input} (h : ntm.Step c c') :
+    |(c'.inputPos.val : ℤ) - c.inputPos.val| ≤ 1 := by
+  unfold Step at h
+  split at h
+  · simp [h]
+  · obtain ⟨a, _, rfl⟩ := h
+    have := val_moveInputPos_eq c.inputPos a.inputTape
+    simp only [Action.apply_inputPos]
+    generalize a.inputTape = m at *
+    rcases m with _ | _ | _ <;> simp [SignType.cast, abs_le] at * <;> omega
 
 namespace RunPath
 
@@ -117,4 +132,39 @@ def prependOutputHom (ntm : MultiTapeNTM k Symbol State) (pre : List Symbol) :
     · obtain ⟨a, ha, rfl⟩ := h
       exact ⟨a, ha, Cfg.ext rfl rfl rfl rfl (by simp [Action.apply])⟩
 
+/-- `ntm` with its output writes erased. A machine never reads its output tape, so the erased
+machine takes the same steps up to the output. -/
+def eraseOutput (ntm : MultiTapeNTM k Symbol State) : MultiTapeNTM k Symbol State :=
+  ntm.adapt (fun inp _ => inp) id fun _ a => { a with output := none }
+
+/-- Erasing the output tape preserves steps, so it maps run paths of `ntm` to run paths of
+`ntm.eraseOutput`. -/
+@[simps! apply]
+def eraseOutputHom (ntm : MultiTapeNTM k Symbol State) :
+    (ntm.stepRel input).Hom (ntm.eraseOutput.stepRel input) :=
+  adaptHom (fun c => { c with output := [] }) (fun _ => rfl) (fun _ => rfl) (fun _ => rfl)
+    fun c a => by simp [Action.apply]
+
 end Turing.MultiTapeNTM
+
+namespace Turing
+
+variable {k : ℕ} {State Symbol : Type*} {input : List Symbol}
+
+/-- The deterministic machine `tm` with its output writes erased. -/
+abbrev MultiTapeTM.eraseOutput (tm : MultiTapeTM k Symbol State) : MultiTapeTM k Symbol State :=
+  ⟨tm.toMultiTapeNTM.eraseOutput, tm.deterministic.adapt⟩
+
+/-- Every computation path of a deterministic machine with its output erased is the erasure of the
+computation path of the same length. -/
+lemma MultiTapeNTM.ComputationPath.exists_map_eraseOutputHom {tm : MultiTapeTM k Symbol State}
+    (q : tm.eraseOutput.ComputationPath input) :
+    ∃ q' : tm.ComputationPath input,
+      q'.toRunPath.map tm.toMultiTapeNTM.eraseOutputHom = q.toRunPath := by
+  refine ⟨.ofDeterministic tm input q.length, ?_⟩
+  change (RunPath.ofDeterministic tm (tm.initCfg input) q.length).map _ = _
+  rw [RunPath.map_ofDeterministic (tm' := tm.eraseOutput)]
+  conv_rhs => rw [RunPath.eq_ofDeterministic q.toRunPath, q.head_eq]
+  rfl
+
+end Turing
