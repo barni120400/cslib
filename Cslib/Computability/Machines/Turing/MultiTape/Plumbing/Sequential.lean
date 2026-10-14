@@ -16,17 +16,16 @@ started in its initial state on the tapes as `tm₀` left them. The state space 
 `State₀ ⊕ State₁`, and the *halting transition* of the first phase is mapped to the initial state
 of the second, so the handoff costs no extra step.
 
-At the specification level this is `transformsTapes_seq`: transformations compose, with the time
-and space bounds adding. The postcondition of `TransformsTapes` is what makes the proof direct:
-the first machine halts in a full `wordsCfg`, which is exactly a starting configuration for the
-second.
+On run paths this is `TransformsTapes.seqPath`: a run of `tm₀` and a run of `tm₁` on the words it
+leaves give a run of `seq`, the running steps of the first followed by those of the second, with the
+time and space of the two runs adding. The first run ends halted in a full `wordsCfg`, which is
+exactly a starting configuration for the second.
 
 ## Main results
 
 * `Turing.MultiTapeTM.seq`: the composed machine.
-* `Turing.MultiTapeTM.exists_runPath_seq`: run paths compose, and the configurations of the
-  composed path are those of the two paths up to their states.
-* `Turing.MultiTapeTM.transformsTapes_seq`: transformations compose, bounds adding.
+* `Turing.MultiTapeNTM.RunPath.TransformsTapes.seq`: runs transforming tapes compose.
+* `Turing.MultiTapeNTM.RunPath.TransformsTapes.space_seqPath_le`: the space of the two runs adds.
 -/
 
 @[expose] public section
@@ -103,62 +102,74 @@ lemma leftCfg_of_halt {cfg : Cfg k Symbol State₀ input} (h : cfg.state = none)
 
 end Sequential
 
-open Sequential in
-/-- **Sequential composition of runs.** A run path of `tm₀` to a halted configuration, followed by a
-run path of `tm₁` to a halted configuration started where `tm₀` halted, gives a run path of `seq`
-of at most as many steps, whose configurations are those of the two paths up to their states. -/
-theorem exists_runPath_seq {p₀ : tm₀.RunPath input} (h₀ : p₀.last.Halted)
-    {p₁ : tm₁.RunPath input} (h₁ : p₁.head = p₀.last.withState (some tm₁.q₀))
-    (hp₁ : p₁.last.Halted) :
-    ∃ p : (tm₀.seq tm₁).RunPath input, p.head = leftCfg tm₁ p₀.head ∧
-      p.last = rightCfg p₁.last ∧ p.length ≤ p₀.length + p₁.length ∧
-      ∀ c ∈ p, (∃ c₀ ∈ p₀, c.forgetState = c₀.forgetState) ∨
-        ∃ c₁ ∈ p₁, c.forgetState = c₁.forgetState := by
-  -- `seq` takes the running steps of `tm₀`, then those of `tm₁`
-  obtain ⟨q₀, hh₀, hl₀, hlen₀, hmem₀⟩ := p₀.exists_running h₀
-  obtain ⟨q₁, hh₁, hl₁, hlen₁, hmem₁⟩ := p₁.exists_running hp₁
-  let f₀ := runningStepHom (tm' := tm₀.seq tm₁) (input := input) (leftCfg tm₁) step_leftCfg
-  let f₁ := runningStepHom (tm' := tm₀.seq tm₁) (input := input) rightCfg
-    fun c _ => step_rightCfg c
-  refine ⟨(q₀.map f₀).smash (q₁.map f₁) (by simp [f₀, f₁, hl₀, hh₁, h₁, leftCfg_of_halt h₀]),
-    by simp [f₀, hh₀], by simp [f₁, hl₁], by simp; lia, fun c hc => ?_⟩
+end Turing.MultiTapeTM
+
+namespace Turing.MultiTapeNTM.RunPath
+
+open MultiTapeTM MultiTapeTM.Sequential
+
+variable {k : ℕ} {Symbol State₀ State₁ : Type*} {input : List Symbol}
+  {tm₀ : MultiTapeTM k Symbol State₀} {tm₁ : MultiTapeTM k Symbol State₁}
+  {p₀ : tm₀.RunPath input} {p₁ : tm₁.RunPath input}
+
+/-- The run of `seq` made of a run of `tm₀` to a halted configuration and a run of `tm₁` from
+there: the running steps of the first, then the second. -/
+noncomputable def seqPath (p₀ : tm₀.RunPath input) (p₁ : tm₁.RunPath input) (h₀ : p₀.last.Halted)
+    (h : p₁.head = p₀.last.withState (some tm₁.q₀)) : (tm₀.seq tm₁).RunPath input :=
+  ((p₀.untilHalt h₀).map (runningStepHom (leftCfg tm₁) step_leftCfg)).smash
+    (p₁.map (stepHom rightCfg fun c => (step_rightCfg c).symm))
+    (by simp [h, leftCfg_of_halt h₀, stepHom])
+
+variable {h₀ : p₀.last.Halted} {h : p₁.head = p₀.last.withState (some tm₁.q₀)}
+
+@[simp]
+lemma head_seqPath : (p₀.seqPath p₁ h₀ h).head = leftCfg tm₁ p₀.head := by
+  simp [seqPath]
+
+@[simp]
+lemma last_seqPath : (p₀.seqPath p₁ h₀ h).last = rightCfg p₁.last := by
+  simp [seqPath, stepHom]
+
+/-- The run of `seq` takes at most the steps of the two runs. -/
+lemma time_seqPath_le : (p₀.seqPath p₁ h₀ h).time ≤ p₀.time + p₁.time :=
+  Nat.add_le_add_right (length_untilHalt_le (h := h₀)) _
+
+/-- Each configuration of the run of `seq` is one of the two runs, up to its state. -/
+lemma mem_seqPath {c : Cfg k Symbol (State₀ ⊕ State₁) input} (hc : c ∈ p₀.seqPath p₁ h₀ h) :
+    (∃ c₀ ∈ p₀, c.forgetState = c₀.forgetState) ∨ ∃ c₁ ∈ p₁, c.forgetState = c₁.forgetState := by
   rcases RelSeries.mem_or_mem_of_mem_smash hc with hc | hc <;>
     obtain ⟨c', hc', rfl⟩ := RelSeries.exists_of_mem_map hc
-  · exact .inl ⟨c', hmem₀ c' hc', rfl⟩
-  · exact .inr ⟨c', hmem₁ c' hc', rfl⟩
+  · exact .inl ⟨c', mem_of_mem_untilHalt hc', rfl⟩
+  · exact .inr ⟨c', hc', rfl⟩
 
-open Sequential in
-/-- **Sequential composition of transformations.** If the postcondition of the first
-transformation implies the precondition of the second, the composed machine performs the two
-transformations one after the other, with the time and space bounds adding and the emitted words
-concatenating. -/
-theorem transformsTapes_seq
-    {P₀ P₁ : (input : List Symbol) → (Fin k → List Symbol) → Prop}
-    {Q₀ Q₁ : (input : List Symbol) → (Fin k → List Symbol) → (Fin k → List Symbol) →
-      List Symbol → Prop}
-    {t₀ s₀ t₁ s₁ : ℕ}
-    (h₀ : TransformsTapes tm₀ P₀ Q₀ t₀ s₀) (h₁ : TransformsTapes tm₁ P₁ Q₁ t₁ s₁)
-    (hmid : ∀ input ws ws' e, P₀ input ws → Q₀ input ws ws' e → P₁ input ws') :
-    TransformsTapes (tm₀.seq tm₁) P₀
-      (fun input ws ws'' e => ∃ ws' e₀ e₁, Q₀ input ws ws' e₀ ∧ Q₁ input ws' ws'' e₁ ∧
-        e = e₀ ++ e₁)
-      (t₀ + t₁) (s₀ + s₁) := by
-  intro input ws out hP₀
-  obtain ⟨ws', e₀, hQ₀, p₀, hh₀, hl₀, ht₀, hs₀⟩ := h₀ input ws out hP₀
-  obtain ⟨ws'', e₁, hQ₁, p₁, hh₁, hl₁, ht₁, hs₁⟩ :=
-    h₁ input ws' (out ++ e₀) (hmid input ws ws' e₀ hP₀ hQ₀)
-  obtain ⟨p, hh, hl, ht, hmem⟩ := exists_runPath_seq (p₀ := p₀) (p₁ := p₁) (by rw [hl₀]; rfl)
-    (by simp [hh₁, hl₀]) (by rw [hl₁]; rfl)
-  refine ⟨ws'', e₀ ++ e₁, ⟨ws', e₀, e₁, hQ₀, hQ₁, rfl⟩, p, by simp [hh, hh₀, leftCfg]; rfl,
-    by simp [hl, hl₁, rightCfg], ht.trans (Nat.add_le_add ht₀ ht₁), ?_⟩
-  -- every head position of the composed run is one of the first path or one of the second
-  refine (p.space_le_sum_card
+/-- The run of `seq` visits at most the cells of the two runs. -/
+lemma space_seqPath_le : (p₀.seqPath p₁ h₀ h).space ≤ p₀.space + p₁.space := by
+  refine ((p₀.seqPath p₁ h₀ h).space_le_sum_card
     (S := fun i => p₀.visitedByTapeHead i ∪ p₁.visitedByTapeHead i) fun c hc i => ?_).trans
-    (((Finset.sum_le_sum fun i _ => Finset.card_union_le _ _).trans_eq
-      Finset.sum_add_distrib).trans (Nat.add_le_add hs₀ hs₁))
-  rcases hmem c hc with ⟨_, ⟨n, rfl⟩, he⟩ | ⟨_, ⟨n, rfl⟩, he⟩ <;>
+    ((Finset.sum_le_sum fun i _ => Finset.card_union_le _ _).trans_eq Finset.sum_add_distrib)
+  rcases mem_seqPath hc with ⟨_, ⟨n, rfl⟩, he⟩ | ⟨_, ⟨n, rfl⟩, he⟩ <;>
     rw [show c.workTapePos i = _ from congrArg (·.workTapePos i) he]
   · exact Finset.mem_union_left _ (Finset.mem_image_of_mem _ (Finset.mem_univ n))
   · exact Finset.mem_union_right _ (Finset.mem_image_of_mem _ (Finset.mem_univ n))
 
-end Turing.MultiTapeTM
+section TransformsTapes
+
+variable {ws ws' ws'' : Fin k → List Symbol} {out e₀ e₁ : List Symbol}
+
+/-- A run on the words another run leaves starts where that run halted, restarted. -/
+lemma TransformsTapes.head_eq_withState (h₀ : p₀.TransformsTapes ws ws' out e₀)
+    (h₁ : p₁.TransformsTapes ws' ws'' (out ++ e₀) e₁) :
+    p₁.head = p₀.last.withState (some tm₁.q₀) := by
+  rw [h₁.head_eq, h₀.last_eq]
+  rfl
+
+/-- **Sequential composition.** Runs transforming tapes one after the other give a run of `seq`
+transforming them in turn, the emitted words concatenating. -/
+theorem TransformsTapes.seq (h₀ : p₀.TransformsTapes ws ws' out e₀)
+    (h₁ : p₁.TransformsTapes ws' ws'' (out ++ e₀) e₁) :
+    (p₀.seqPath p₁ h₀.halted (h₀.head_eq_withState h₁)).TransformsTapes ws ws'' out (e₀ ++ e₁) :=
+  ⟨by simp [h₀.head_eq, leftCfg]; rfl, by simp [h₁.last_eq, rightCfg]⟩
+
+end TransformsTapes
+
+end Turing.MultiTapeNTM.RunPath

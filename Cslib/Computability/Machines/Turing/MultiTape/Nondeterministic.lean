@@ -158,18 +158,40 @@ lemma last_eq_of_halted (p : ntm.RunPath input) (i : Fin (p.length + 1))
 /-- The number of steps taken by a run path. -/
 def time (p : ntm.RunPath input) : ℕ := p.length
 
-/-- A path that ends halted runs from its head to its last configuration in running steps, up to
-its first halted configuration. -/
-lemma exists_running (p : ntm.RunPath input) (h : p.last.Halted) :
-    ∃ q : RelSeries (ntm.runningStepRel input), q.head = p.head ∧ q.last = p.last ∧
-      q.length ≤ p.length ∧ ∀ c ∈ q, c ∈ p := by
-  classical
-  -- cut the path at its first halted configuration
+open Classical in
+/-- The steps of a path that ends halted, up to its first halted configuration: running steps
+from its head to its last configuration. -/
+noncomputable def untilHalt (p : ntm.RunPath input) (h : p.last.Halted) :
+    RelSeries (ntm.runningStepRel input) :=
   have hex : ∃ n, ∃ hn : n < p.length + 1, (p ⟨n, hn⟩).Halted := ⟨p.length, by lia, h⟩
-  obtain ⟨hn, hhalt⟩ := Nat.find_spec hex
-  refine ⟨⟨Nat.find hex, fun i => p ⟨i, by lia⟩, fun i =>
-    ⟨fun hi => Nat.find_min hex i.isLt ⟨_, hi⟩, p.step ⟨i, by lia⟩⟩⟩, rfl,
-    (p.last_eq_of_halted _ hhalt).symm, Nat.lt_succ_iff.mp hn, fun _ ⟨i, hi⟩ => ⟨_, hi⟩⟩
+  have hn := (Nat.find_spec hex).1
+  { length := Nat.find hex
+    toFun i := p ⟨i, by lia⟩
+    step i := ⟨fun hi => Nat.find_min hex i.isLt ⟨_, hi⟩, p.step ⟨i, by lia⟩⟩ }
+
+section untilHalt
+
+variable {p : ntm.RunPath input} {h : p.last.Halted}
+
+@[simp]
+lemma head_untilHalt : (p.untilHalt h).head = p.head := rfl
+
+@[simp]
+lemma last_untilHalt : (p.untilHalt h).last = p.last := by
+  classical
+  have hex : ∃ n, ∃ hn : n < p.length + 1, (p ⟨n, hn⟩).Halted := ⟨p.length, by lia, h⟩
+  exact (p.last_eq_of_halted _ (Nat.find_spec hex).2).symm
+
+lemma length_untilHalt_le : (p.untilHalt h).length ≤ p.length := by
+  classical
+  have hex : ∃ n, ∃ hn : n < p.length + 1, (p ⟨n, hn⟩).Halted := ⟨p.length, by lia, h⟩
+  exact Nat.lt_succ_iff.mp (Nat.find_spec hex).1
+
+lemma mem_of_mem_untilHalt {c : Cfg k Symbol State input} (hc : c ∈ p.untilHalt h) : c ∈ p :=
+  let ⟨_, hi⟩ := hc
+  ⟨_, hi⟩
+
+end untilHalt
 
 end RunPath
 

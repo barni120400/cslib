@@ -38,7 +38,7 @@ corresponding step and run path of `tm`.
 * `Turing.MultiTapeTM.space_map_embedHom_le`: the space bound for a mapped path.
 * `Turing.MultiTapeTM.oneTapeCfg`: the one-tape view of a configuration.
 * `Turing.MultiTapeTM.runFrom_tapeEmb`: the run of a one-tape machine placed on work tape `i`.
-* `Turing.MultiTapeTM.TransformsTapes.tapeEmb`: a one-tape specification, read on tape `i`.
+* `Turing.MultiTapeNTM.RunPath.TransformsTapes.onTape`: a one-tape specification, read on tape `i`.
 * `Turing.MultiTapeTM.runFrom_noTapes`: the run of a machine without work tapes, placed in a machine
   with `k` of them.
 -/
@@ -222,33 +222,36 @@ public lemma runFrom_tapeEmb (tm : MultiTapeTM 1 Symbol State) (i : Fin k)
       embed (tapeEmb i) (tm.runFrom (oneTapeCfg i cfg) n) cfg.workTapes cfg.workTapePos := by
   rw [← embedHom_apply tm, ← runFrom_map, embedHom_apply, embed_oneTapeCfg]
 
-/-- **A one-tape specification on tape `i`.** A one-tape machine placed on tape `i` transforms the
-word on that tape as it did on its own tape and leaves every other word alone; each remaining tape
-costs one cell. -/
-public theorem TransformsTapes.tapeEmb {tm : MultiTapeTM 1 Symbol State}
-    {P : (input : List Symbol) → (Fin 1 → List Symbol) → Prop}
-    {Q : (input : List Symbol) → (Fin 1 → List Symbol) → (Fin 1 → List Symbol) →
-      List Symbol → Prop} {t s : ℕ}
-    (h : TransformsTapes tm P Q t s) (i : Fin k) :
-    TransformsTapes (tm.extendTapes (MultiTapeTM.tapeEmb i))
-      (fun input ws => P input fun _ => ws i)
-      (fun input ws ws' emitted =>
-        ∃ v, Q input (fun _ => ws i) v emitted ∧ ws' = Function.update ws i (v 0))
-      t (s + (k - 1)) := by
-  intro input ws out hP
-  obtain ⟨v, emitted, hQ, p, hhead, hlast, htime, hspace⟩ := h input (fun _ => ws i) out hP
-  -- the path of the placed machine is the one-tape path, placed on tape `i`
+/-- A run path of a one-tape machine, placed on tape `i` among tapes holding the words `ws`. -/
+public noncomputable abbrev _root_.Turing.MultiTapeNTM.RunPath.onTape
+    {tm : MultiTapeTM 1 Symbol State}
+    (p : tm.RunPath input) (i : Fin k) (ws : Fin k → List Symbol) :
+    (tm.extendTapes (tapeEmb i)).RunPath input :=
+  p.map (embedHom tm (tapeEmb i) (fun l => tapeOfList (ws l)) fun _ => 0)
+
+/-- **A one-tape run on tape `i`.** Placed on tape `i`, a run of a one-tape machine transforms the
+word on that tape as it did on its own tape and leaves every other word alone. -/
+public theorem _root_.Turing.MultiTapeNTM.RunPath.TransformsTapes.onTape
+    {tm : MultiTapeTM 1 Symbol State} {p : tm.RunPath input} {i : Fin k} {ws : Fin k → List Symbol}
+    {v : Fin 1 → List Symbol} {out emitted : List Symbol}
+    (h : p.TransformsTapes (fun _ => ws i) v out emitted) :
+    (p.onTape i ws).TransformsTapes ws (Function.update ws i (v 0)) out emitted := by
+  -- a configuration on words, placed on tape `i`
   have hplace (q : Option State) (v : Fin 1 → List Symbol) (o : List Symbol) :
-      embed (MultiTapeTM.tapeEmb i) (wordsCfg input q v o) (fun l => tapeOfList (ws l))
-        (fun _ => 0) = wordsCfg input q (Function.update ws i (v 0)) o := by
+      embed (tapeEmb i) (wordsCfg input q v o) (fun l => tapeOfList (ws l)) (fun _ => 0) =
+        wordsCfg input q (Function.update ws i (v 0)) o := by
     rw [embed_tapeEmb]
     refine Cfg.ext rfl rfl ?_ ?_ rfl <;> funext l <;> by_cases hl : l = i <;> simp [hl, wordsCfg]
-  refine ⟨Function.update ws i (v 0), emitted, ⟨v, hQ, rfl⟩,
-    p.map (embedHom tm (MultiTapeTM.tapeEmb i) (fun l => tapeOfList (ws l)) (fun _ => 0)),
-    ?_, ?_, htime, (space_map_embedHom_le ..).trans (Nat.add_le_add_right hspace _)⟩
-  · simp only [RelSeries.head_map, hhead, embedHom_apply, hplace, Function.update_eq_self]
+  constructor
+  · simp only [RelSeries.head_map, h.head_eq, embedHom_apply, hplace, Function.update_eq_self]
     rfl
-  · simp only [RelSeries.last_map, hlast, embedHom_apply, hplace]
+  · simp only [RelSeries.last_map, h.last_eq, embedHom_apply, hplace]
+
+/-- Placed on tape `i`, a run path visits one more cell for each other tape. -/
+public lemma _root_.Turing.MultiTapeNTM.RunPath.space_onTape_le {tm : MultiTapeTM 1 Symbol State}
+    (p : tm.RunPath input) (i : Fin k) (ws : Fin k → List Symbol) :
+    (p.onTape i ws).space ≤ p.space + (k - 1) :=
+  space_map_embedHom_le ..
 
 end OneTape
 
