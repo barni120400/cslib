@@ -161,11 +161,8 @@ lemma InWindow.space_le {p : ntm.RunPath input} {s : ℕ} (h : p.InWindow s) :
 
 /-- Joining two paths whose heads stay within `[-s, s]` keeps them there. -/
 lemma InWindow.smash {p q : ntm.RunPath input} {h : p.last = q.head} {s : ℕ}
-    (hp : p.InWindow s) (hq : q.InWindow s) : InWindow (p.smash q h) s := by
-  rintro _ ⟨j, rfl⟩
-  refine Fin.addCases (m := p.length) (n := q.length + 1) (fun j => ?_) (fun j => ?_) j
-  · exact hp _ ⟨j.castSucc, by simp [RelSeries.smash]⟩
-  · exact hq _ ⟨j, by simp [RelSeries.smash]⟩
+    (hp : p.InWindow s) (hq : q.InWindow s) : InWindow (p.smash q h) s :=
+  fun _ hc => (RelSeries.mem_or_mem_of_mem_smash hc).elim (hp _) (hq _)
 
 /-- A path that starts with every head at cell `0` and visits at most `s` cells keeps its heads
 within `[-s, s]`. -/
@@ -225,16 +222,3 @@ def prependOutputHom (ntm : MultiTapeNTM k Symbol State) (pre : List Symbol) :
       exact ⟨a, ha, Cfg.ext rfl rfl rfl rfl (by simp [Action.apply])⟩
 
 end Turing.MultiTapeNTM
-
-namespace Turing.MultiTapeTM
-
-variable {k : ℕ} {State Symbol : Type*} {input : List Symbol} {tm : MultiTapeTM k Symbol State}
-
-/-- The run from the head of a run path that ends halted visits no cell outside the path. -/
-lemma space_head_le (p : tm.RunPath input) (h : p.last.Halted) (t : ℕ) :
-    tm.space p.head t ≤ p.space := by
-  rw [p.eq_ofDeterministic] at h ⊢
-  exact MultiTapeNTM.RunPath.space_le_of_subset fun _ ⟨m, hm⟩ =>
-    hm ▸ runFrom_mem_ofDeterministic h m
-
-end Turing.MultiTapeTM
