@@ -58,9 +58,7 @@ lemma Step.inputPos_le {c c' : Cfg k Symbol State input} (h : ntm.Step c c') :
   · simp [h]
   · obtain ⟨a, _, rfl⟩ := h
     have := val_moveInputPos_eq c.inputPos a.inputTape
-    simp only [Action.apply_inputPos]
-    generalize a.inputTape = m at *
-    rcases m with _ | _ | _ <;> simp [SignType.cast, abs_le] at * <;> omega
+    rcases ha : a.inputTape <;> grind [SignType.cast, Action.apply_inputPos]
 
 namespace RunPath
 
@@ -146,25 +144,3 @@ def eraseOutputHom (ntm : MultiTapeNTM k Symbol State) :
     fun c a => by simp [Action.apply]
 
 end Turing.MultiTapeNTM
-
-namespace Turing
-
-variable {k : ℕ} {State Symbol : Type*} {input : List Symbol}
-
-/-- The deterministic machine `tm` with its output writes erased. -/
-abbrev MultiTapeTM.eraseOutput (tm : MultiTapeTM k Symbol State) : MultiTapeTM k Symbol State :=
-  ⟨tm.toMultiTapeNTM.eraseOutput, tm.deterministic.adapt⟩
-
-/-- Every computation path of a deterministic machine with its output erased is the erasure of the
-computation path of the same length. -/
-lemma MultiTapeNTM.ComputationPath.exists_map_eraseOutputHom {tm : MultiTapeTM k Symbol State}
-    (q : tm.eraseOutput.ComputationPath input) :
-    ∃ q' : tm.ComputationPath input,
-      q'.toRunPath.map tm.toMultiTapeNTM.eraseOutputHom = q.toRunPath := by
-  refine ⟨.ofDeterministic tm input q.length, ?_⟩
-  change (RunPath.ofDeterministic tm (tm.initCfg input) q.length).map _ = _
-  rw [RunPath.map_ofDeterministic (tm' := tm.eraseOutput)]
-  conv_rhs => rw [RunPath.eq_ofDeterministic q.toRunPath, q.head_eq]
-  rfl
-
-end Turing

@@ -359,31 +359,25 @@ lemma _root_.Turing.MultiTapeNTM.RunPath.injOn_running (p : tm.RunPath input)
     · exact h'.symm
   exfalso
   have hp (n : Fin (p.length + 1)) : p n = tm.step^[n] p.head := runPath_apply_eq_runFrom p n
-  -- `p i` is a periodic point of period `j - i`, and its orbit reaches the fixed point `p.last`
+  -- `p i` is a periodic point of period `j - i`
   have hper : Function.IsPeriodicPt tm.step (j - i) (p i) := by
     change tm.step^[j - i] (p i) = p i
     conv_rhs => rw [hij]
     rw [hp j, hp i, ← Function.iterate_add_apply]
     congr 1
     omega
-  have hlast : tm.step^[p.length - i] (p i) = p.last := by
-    rw [hp i, ← Function.iterate_add_apply, RelSeries.last, hp (Fin.last _)]
-    congr 1
-    simp only [Fin.val_last]
+  -- so the halted last configuration already occurs within one period after `i`, before `j`
+  have hk : (p.length - i) % (j - i) + i < j := by
+    have := Nat.mod_lt (p.length - i) (show 0 < j.val - i.val by omega)
     omega
-  have hfix : tm.step p.last = p.last := step_of_halt h
-  apply hi
-  have : p i = p.last := by
-    calc p i = tm.step^[(j - i) * (p.length - i)] (p i) := (hper.mul_const _).eq.symm
-      _ = tm.step^[(j - i) * (p.length - i) - (p.length - i)]
-            (tm.step^[p.length - i] (p i)) := by
-        rw [← Function.iterate_add_apply]
-        congr 1
-        have := Nat.le_mul_of_pos_left (p.length - i) (show 0 < j.val - i.val by omega)
-        omega
-      _ = p.last := by rw [hlast, Function.iterate_fixed hfix]
-  rw [this]
-  exact h
+  refine p.not_halted_of_le (i := ⟨_, hk.trans j.isLt⟩) hk.le hj ?_
+  rw [hp, Function.iterate_add_apply, ← hp, hper.iterate_mod_apply, hp,
+    ← Function.iterate_add_apply]
+  convert h using 2
+  rw [RelSeries.last, hp (Fin.last _)]
+  congr 1
+  simp only [Fin.val_last]
+  omega
 
 end MultiTapeTM
 
