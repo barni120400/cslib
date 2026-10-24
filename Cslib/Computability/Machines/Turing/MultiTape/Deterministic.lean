@@ -110,6 +110,18 @@ lemma tr_ofTr (q₀ : State)
     (ofTr q₀ tr).tr q input work = tr q input work :=
   tr_iff.mp rfl
 
+/-- `tm` run through `adapter`, which is deterministic: what the adapted machine reads determines
+what `tm` reads, and so its action. -/
+def adapt {k' : ℕ} (tm : MultiTapeTM k Symbol State)
+    (adapter : MultiTapeNTM.Adapter k k' Symbol State State) : MultiTapeTM k' Symbol State where
+  toMultiTapeNTM := tm.toMultiTapeNTM.adapt adapter
+  deterministic q inputSymbol workTapeSymbols :=
+    (tm.deterministic q (adapter.read ⟨inputSymbol, workTapeSymbols⟩).inputSymbol
+      (adapter.read ⟨inputSymbol, workTapeSymbols⟩).workTapeSymbols).elim fun action hTr hunique =>
+        ⟨adapter.action ⟨inputSymbol, workTapeSymbols⟩ action, ⟨action, hTr, rfl⟩,
+          fun _ ⟨other, hother, hadapted⟩ =>
+            hadapted ▸ congrArg (adapter.action _) (hunique other hother)⟩
+
 /-!
 ## Stepping a Turing Machine
 
@@ -168,27 +180,6 @@ public lemma step_workTapePos_of_state {cfg : Cfg k Symbol State input} {q : Sta
 lemma step_of_halt {cfg : Cfg k Symbol State input} (h : cfg.state = none) :
     tm.step cfg = cfg :=
   step_iff.mp ((MultiTapeNTM.step_of_halt h).mpr rfl)
-
-/-- A configuration map semiconjugating the step functions is a homomorphism of the step relations,
-so it maps run paths with `RelSeries.map`. -/
-def stepHom {k' : ℕ} {State' : Type*} {input' : List Symbol}
-    {tm' : MultiTapeTM k' Symbol State'}
-    (f : Cfg k Symbol State input → Cfg k' Symbol State' input')
-    (h : Function.Semiconj f tm.step tm'.step) :
-    (tm.stepRel input).Hom (tm'.stepRel input') where
-  toFun := f
-  map_rel' hc := step_iff.mpr ((h _).symm.trans (congrArg f (step_iff.mp hc)))
-
-/-- A configuration map commuting with the step functions on running configurations is a
-homomorphism from the running steps of `tm` to the steps of `tm'`. -/
-@[simps! apply]
-def runningStepHom {k' : ℕ} {State' : Type*} {input' : List Symbol}
-    {tm' : MultiTapeTM k' Symbol State'}
-    (f : Cfg k Symbol State input → Cfg k' Symbol State' input')
-    (h : ∀ c, ¬c.Halted → tm'.step (f c) = f (tm.step c)) :
-    (tm.runningStepRel input).Hom (tm'.stepRel input') where
-  toFun := f
-  map_rel' {c _} hc := step_iff.mpr ((h c hc.1).trans (congrArg f (step_iff.mp hc.2)))
 
 end MultiTapeTM
 
