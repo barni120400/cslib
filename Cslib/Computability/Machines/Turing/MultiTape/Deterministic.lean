@@ -149,6 +149,12 @@ def handOver {State₀ State₁ : Type*} (q₁ : State₁) (state : Option State
     Option (State₀ ⊕ State₁) :=
   some (state.elim (.inr q₁) .inl)
 
+@[simp] lemma handOver_some {State₀ State₁ : Type*} (q₁ : State₁) (q : State₀) :
+    handOver q₁ (some q) = some (.inl q) := rfl
+
+@[simp] lemma handOver_none {State₀ State₁ : Type*} (q₁ : State₁) :
+    handOver (State₀ := State₀) q₁ none = some (.inr q₁) := rfl
+
 section wire
 
 variable {State₀ State₁ : Type*} {tm₀ : MultiTapeTM k Symbol State₀}
@@ -162,6 +168,21 @@ lemma follows_wire_left : (wire tm₀ tm₁ next₀ next₁ q₀).Follows tm₀ 
 /-- In its states `inr q`, the wiring follows `tm₁`, its steps leading along `next₁`. -/
 lemma follows_wire_right : (wire tm₀ tm₁ next₀ next₁ q₀).Follows tm₁ .inr (.mapState next₁) :=
   fun _ _ _ h => tr_iff.mp h ▸ rfl
+
+/-- If `next₀` keeps the live states of `tm₀` in `tm₀`, the wiring mirrors the running steps of
+`tm₀`, its states relabeled along `next₀`. -/
+@[simps! apply]
+noncomputable def wireLeftHom {input : List Symbol} (h : ∀ q, next₀ (some q) = some (.inl q)) :
+    (tm₀.runningStepRel input).Hom ((wire tm₀ tm₁ next₀ next₁ q₀).stepRel input) :=
+  follows_wire_left.runningStepHom (Cfg.mapState next₀) (fun _ _ hq => by simp [hq, h])
+    (fun _ => rfl) fun _ _ => rfl
+
+/-- If the steps of `tm₁` stay in `tm₁`, the wiring mirrors them. -/
+@[simps! apply]
+noncomputable def wireRightHom {input : List Symbol} :
+    (tm₁.stepRel input).Hom ((wire tm₀ tm₁ next₀ (Option.map .inr) q₀).stepRel input) :=
+  follows_wire_right.stepHom (Cfg.mapState (Option.map .inr)) (fun _ => rfl) (fun _ => rfl)
+    fun _ _ => rfl
 
 end wire
 

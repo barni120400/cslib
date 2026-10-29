@@ -29,14 +29,14 @@ variable {k : ℕ} {Symbol State : Type*} {input : List Symbol}
 
 /-- The test of tape `i`: it halts if the cell under the head of tape `i` is blank and otherwise
 stays in its only state, moving no head. -/
-def RepeatUntilBlank.blankTest (i : Fin k) : MultiTapeTM k Symbol Unit :=
+public def RepeatUntilBlank.blankTest (i : Fin k) : MultiTapeTM k Symbol Unit :=
   ofTr () fun _ _ work =>
     { inputTape := 0, workTapes := fun _ => (none, 0), output := none,
       state := (work i).map fun _ => () }
 
 /-- `tm` wired with the test of tape `i`: halting of `tm` goes to the test, which halts the loop if
 the cell under the head of tape `i` is blank and otherwise restarts `tm`. -/
-public noncomputable def repeatUntilBlank (i : Fin k) (tm : MultiTapeTM k Symbol State) :
+public noncomputable abbrev repeatUntilBlank (i : Fin k) (tm : MultiTapeTM k Symbol State) :
     MultiTapeTM k Symbol (State ⊕ Unit) :=
   wire tm (RepeatUntilBlank.blankTest i) (handOver ()) (Option.map fun _ => .inl tm.q₀)
     (.inl tm.q₀)
@@ -44,14 +44,6 @@ public noncomputable def repeatUntilBlank (i : Fin k) (tm : MultiTapeTM k Symbol
 namespace RepeatUntilBlank
 
 variable {i : Fin k} {tm : MultiTapeTM k Symbol State}
-
-/-- A configuration of `tm` as one of `repeatUntilBlank i tm`, a live state `q` becoming `inl q` and
-the halted state the test `inr ()`: the loop mirrors the running steps of `tm`. -/
-@[simps! apply]
-noncomputable def runHom (i : Fin k) :
-    (tm.runningStepRel input).Hom ((repeatUntilBlank i tm).stepRel input) :=
-  follows_wire_left.runningStepHom (Cfg.mapState (handOver ()))
-    (fun _ _ => congrArg (handOver ())) (fun _ => rfl) fun _ _ => rfl
 
 /-- From the test on a `wordsCfg` configuration, the machine halts if the word on tape `i` is empty
 and otherwise restarts `tm`, leaving the words unchanged. -/
@@ -78,12 +70,12 @@ lemma exists_round {P : (input : List Symbol) → (Fin k → List Symbol) → Pr
       p.length ≤ t + 1 ∧ p.InWindow s := by
   obtain ⟨w', e, hQ, p, hhead, hlast, htime, hspace⟩ := h input w out hP
   obtain ⟨q, hqhead, hqlast, hqlen, hqmem⟩ := p.exists_running (by rw [hlast]; rfl)
-  have hcheck : (repeatUntilBlank i tm).Step (q.map (runHom i)).last
-      (wordsCfg input (if w' i = [] then none else some (.inl tm.q₀)) w' (out ++ e)) := by
-    simp [hqlast, hlast, handOver, step_check]
-  refine ⟨w', e, hQ, (q.map (runHom i)).snoc _ hcheck,
-    by simp [hqhead, hhead, handOver], by simp,
-    by simp [MultiTapeNTM.RunPath.time] at htime ⊢; lia, ?_⟩
+  let f : (tm.runningStepRel input).Hom ((repeatUntilBlank i tm).stepRel input) :=
+    wireLeftHom (handOver_some _)
+  refine ⟨w', e, hQ, (q.map f).snoc
+    (wordsCfg input (if w' i = [] then none else some (.inl tm.q₀)) w' (out ++ e))
+    (by simp [f, hqlast, hlast, step_check]),
+    by simp [f, hqhead, hhead], by simp, by simp [MultiTapeNTM.RunPath.time] at htime ⊢; lia, ?_⟩
   -- the heads of `tm` stay within `[-s, s]`, and reading tape `i` moves none of them
   have hwin := MultiTapeNTM.RunPath.inWindow_of_space_le (p := p) (by simp [hhead]) hspace
   intro c hc

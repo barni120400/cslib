@@ -38,59 +38,26 @@ variable {k : ℕ} {Symbol State₀ State₁ : Type*} {input : List Symbol}
 /-- The sequential composition of `tm₀` and `tm₁`: it behaves like `tm₀` until `tm₀` would halt,
 at which point it switches to the initial state of `tm₁` and behaves like `tm₁`. The switch is
 folded into the halting transition of `tm₀`, so it costs no step. -/
-noncomputable def seq (tm₀ : MultiTapeTM k Symbol State₀) (tm₁ : MultiTapeTM k Symbol State₁) :
+noncomputable abbrev seq (tm₀ : MultiTapeTM k Symbol State₀) (tm₁ : MultiTapeTM k Symbol State₁) :
     MultiTapeTM k Symbol (State₀ ⊕ State₁) :=
   wire tm₀ tm₁ (handOver tm₁.q₀) (Option.map .inr) (.inl tm₀.q₀)
 
 variable {tm₀ : MultiTapeTM k Symbol State₀} {tm₁ : MultiTapeTM k Symbol State₁}
 
-namespace Sequential
-
-/-- A configuration of the first phase: a configuration of `tm₀`, with a halted state mapped to
-the state `q₁` of the second phase. Under this map, the whole first phase of `seq` mirrors the
-run of `tm₀`, *including* its halting step. -/
-def leftCfg (q₁ : State₁) (cfg : Cfg k Symbol State₀ input) :
-    Cfg k Symbol (State₀ ⊕ State₁) input :=
-  cfg.mapState (handOver q₁)
-
-/-- A configuration of the second phase. Under this map, the second phase of `seq` mirrors the
-run of `tm₁`. -/
-def rightCfg (cfg : Cfg k Symbol State₁ input) :
-    Cfg k Symbol (State₀ ⊕ State₁) input :=
-  cfg.mapState (Option.map .inr)
-
-/-- The first phase of `seq tm₀ tm₁` mirrors the running steps of `tm₀`. -/
-@[simps! apply]
-noncomputable def leftCfgHom : (tm₀.runningStepRel input).Hom ((tm₀.seq tm₁).stepRel input) :=
-  follows_wire_left.runningStepHom (leftCfg tm₁.q₀)
-    (fun _ _ => congrArg (handOver tm₁.q₀)) (fun _ => rfl) fun _ _ => rfl
-
-/-- The second phase of `seq tm₀ tm₁` mirrors the steps of `tm₁`. -/
-@[simps! apply]
-noncomputable def rightCfgHom : (tm₁.stepRel input).Hom ((tm₀.seq tm₁).stepRel input) :=
-  follows_wire_right.stepHom rightCfg (fun _ => rfl) (fun _ => rfl) fun _ _ => rfl
-
-/-- A halted configuration of the first phase is the start of the second phase. -/
-lemma leftCfg_of_halt {q₁ : State₁} {cfg : Cfg k Symbol State₀ input} (h : cfg.state = none) :
-    leftCfg q₁ cfg = rightCfg (cfg.withState (some q₁)) := by
-  simp [leftCfg, handOver, rightCfg, Cfg.withState, Cfg.mapState, h]
-
-end Sequential
-
-open Sequential in
 /-- **Sequential composition of runs.** A run path of `tm₀` to a halted configuration and a run path
 of `tm₁` started where `tm₀` halted combine into a run path of `seq`: the first path up to its first
 halted configuration, followed by the second. It takes at most as many steps as the two paths
 together, and visits only cells that they visit. -/
 theorem exists_runPath_seq {p₀ : tm₀.RunPath input} (h₀ : p₀.last.Halted)
     {p₁ : tm₁.RunPath input} (h₁ : p₁.head = p₀.last.withState (some tm₁.q₀)) :
-    ∃ p : (tm₀.seq tm₁).RunPath input, p.head = leftCfg tm₁.q₀ p₀.head ∧
-      p.last = rightCfg p₁.last ∧ p.length ≤ p₀.length + p₁.length ∧
+    ∃ p : (tm₀.seq tm₁).RunPath input, p.head = p₀.head.mapState (handOver tm₁.q₀) ∧
+      p.last = p₁.last.mapState (Option.map .inr) ∧ p.length ≤ p₀.length + p₁.length ∧
       ∀ i, p.visitedByTapeHead i ⊆ p₀.visitedByTapeHead i ∪ p₁.visitedByTapeHead i := by
   -- `seq` takes the running steps of `tm₀`, then the steps of `tm₁`
   obtain ⟨q₀, hh₀, hl₀, hlen₀, hmem₀⟩ := p₀.exists_running h₀
-  refine ⟨(q₀.map leftCfgHom).smash (p₁.map rightCfgHom)
-    (by simp [hl₀, h₁, leftCfg_of_halt h₀]), by simp [hh₀], by simp, by simp; lia,
+  refine ⟨(q₀.map (wireLeftHom (handOver_some _))).smash (p₁.map wireRightHom)
+    (by simp [hl₀, h₁, Cfg.mapState, Cfg.withState, show p₀.last.state = none from h₀]),
+    by simp [hh₀], by simp, by simp; lia,
     fun i z hz => ?_⟩
   obtain ⟨c, hc, rfl⟩ := (MultiTapeNTM.RunPath.mem_visitedByTapeHead _).mp hz
   rcases RelSeries.mem_or_mem_of_mem_smash hc with hc | hc <;>
@@ -98,7 +65,6 @@ theorem exists_runPath_seq {p₀ : tm₀.RunPath input} (h₀ : p₀.last.Halted
   · exact Finset.mem_union_left _ (p₀.mem_visitedByTapeHead.mpr ⟨c', hmem₀ c' hc', rfl⟩)
   · exact Finset.mem_union_right _ (p₁.mem_visitedByTapeHead.mpr ⟨c', hc', rfl⟩)
 
-open Sequential in
 /-- **Sequential composition of transformations.** If the postcondition of the first
 transformation implies the precondition of the second, the composed machine performs the two
 transformations one after the other, with the time and space bounds adding and the emitted words
@@ -121,8 +87,8 @@ theorem transformsTapes_seq
   obtain ⟨p, hh, hl, ht, hvisited⟩ := exists_runPath_seq (p₀ := p₀) (p₁ := p₁)
     (by rw [hl₀]; rfl) (by simp [hh₁, hl₀])
   -- the composed run visits only cells that one of the two runs visits
-  exact ⟨ws'', e₀ ++ e₁, ⟨ws', e₀, e₁, hQ₀, hQ₁, rfl⟩, p, by simp [hh, hh₀, leftCfg]; rfl,
-    by simp [hl, hl₁, rightCfg], ht.trans (Nat.add_le_add ht₀ ht₁),
+  exact ⟨ws'', e₀ ++ e₁, ⟨ws', e₀, e₁, hQ₀, hQ₁, rfl⟩, p, by simp [hh, hh₀]; rfl,
+    by simp [hl, hl₁], ht.trans (Nat.add_le_add ht₀ ht₁),
     ((Finset.sum_le_sum fun i _ => (Finset.card_le_card (hvisited i)).trans
       (Finset.card_union_le _ _)).trans_eq Finset.sum_add_distrib).trans (Nat.add_le_add hs₀ hs₁)⟩
 
