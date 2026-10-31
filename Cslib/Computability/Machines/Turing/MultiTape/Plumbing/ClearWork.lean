@@ -46,7 +46,6 @@ public noncomputable def clearWork (Symbol : Type*) :
     MultiTapeTM 1 Symbol (Unit ⊕ RewindWorkState) :=
   (forwardWork Symbol).seq (rewindWork Symbol (some none))
 
-open Sequential in
 /-- **The machine that clears its work tape** replaces the word on it by the empty word, in at most
 `3 * (w.length + 1)` steps and `w.length + 2` cells. -/
 public theorem transformsTapes_clearWork (w : List Symbol) :
@@ -67,7 +66,7 @@ public theorem transformsTapes_clearWork (w : List Symbol) :
   obtain ⟨p, hh, hl, ht, hvisited⟩ := exists_runPath_seq (p₀ := p₀) (p₁ := p₁) (by rw [h₀])
     (by rw [h₀]; rfl)
   refine ⟨fun _ => [], [], ⟨rfl, rfl⟩, p, hh,
-    by rw [hl, h₁]; simp [rightCfg, Cfg.mapState, wordsCfg],
+    by rw [hl, h₁]; simp [Cfg.mapState, wordsCfg],
     (show p.length ≤ w.length + 1 + (w.length + 2) from ht).trans (by lia), ?_⟩
   -- both passes keep the head within `[-1, w.length]`
   rw [MultiTapeNTM.RunPath.space, Fin.sum_univ_one]
