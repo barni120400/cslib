@@ -40,7 +40,7 @@ at which point it switches to the initial state of `tm₁` and behaves like `tm�
 folded into the halting transition of `tm₀`, so it costs no step. -/
 noncomputable abbrev seq (tm₀ : MultiTapeTM k Symbol State₀) (tm₁ : MultiTapeTM k Symbol State₁) :
     MultiTapeTM k Symbol (State₀ ⊕ State₁) :=
-  wire tm₀ tm₁ (handOver tm₁.q₀) (Option.map .inr) (.inl tm₀.q₀)
+  combine tm₀ tm₁ (handOver tm₁.q₀) (Option.map .inr) (.inl tm₀.q₀)
 
 variable {tm₀ : MultiTapeTM k Symbol State₀} {tm₁ : MultiTapeTM k Symbol State₁}
 
@@ -55,7 +55,7 @@ theorem exists_runPath_seq {p₀ : tm₀.RunPath input} (h₀ : p₀.last.Halted
       ∀ i, p.visitedByTapeHead i ⊆ p₀.visitedByTapeHead i ∪ p₁.visitedByTapeHead i := by
   -- `seq` takes the running steps of `tm₀`, then the steps of `tm₁`
   obtain ⟨q₀, hh₀, hl₀, hlen₀, hmem₀⟩ := p₀.exists_running h₀
-  refine ⟨(q₀.map (wireLeftHom (handOver_some _))).smash (p₁.map wireRightHom)
+  refine ⟨(q₀.map (combineLeftHom (handOver_some _))).smash (p₁.map combineRightHom)
     (by simp [hl₀, h₁, Cfg.mapState, Cfg.withState, show p₀.last.state = none from h₀]),
     by simp [hh₀], by simp, by simp; lia,
     fun i z hz => ?_⟩

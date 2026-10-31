@@ -32,7 +32,7 @@ We define a number of structures and concepts related to multi-tape Turing machi
 * `MultiTapeTM`: the TM itself
 * `tr`, `ofTr`: the derived transition function and construction from a function
 * `adapt`: the machine run through an adapter
-* `wire`: two machines on the same tapes wired into one
+* `combine`: two machines on the same tapes combined into one
 * `step`, `runFrom`: the successor configuration and iteration of this function
 * `MultiTapeNTM.RunPath.ofDeterministic`, `MultiTapeNTM.ComputationPath.ofDeterministic`:
     paths of a given length from an arbitrary or initial configuration
@@ -133,18 +133,18 @@ lemma follows_adapt {k' : ℕ} {adapter : MultiTapeNTM.Adapter k k' Symbol State
     (tm.adapt adapter).Follows tm id adapter :=
   fun _ _ _ h => tr_iff.mp h ▸ rfl
 
-/-- `tm₀` and `tm₁` wired into one machine on their shared tapes, which starts in `q₀`: in a state
-`inl q` it performs the transition of `tm₀` in `q`, and in `inr q` that of `tm₁`. The wires `next₀`
-and `next₁` say where the steps of each machine lead: within the same machine, to the other
+/-- `tm₀` and `tm₁` combined into one machine on their shared tapes, which starts in `q₀`: in a
+state `inl q` it performs the transition of `tm₀` in `q`, and in `inr q` that of `tm₁`. The maps
+`next₀` and `next₁` say where the steps of each machine lead: within the same machine, to the other
 machine, or to halting. -/
-noncomputable def wire {State₀ State₁ : Type*} (tm₀ : MultiTapeTM k Symbol State₀)
+noncomputable def combine {State₀ State₁ : Type*} (tm₀ : MultiTapeTM k Symbol State₀)
     (tm₁ : MultiTapeTM k Symbol State₁) (next₀ : Option State₀ → Option (State₀ ⊕ State₁))
     (next₁ : Option State₁ → Option (State₀ ⊕ State₁)) (q₀ : State₀ ⊕ State₁) :
     MultiTapeTM k Symbol (State₀ ⊕ State₁) :=
   ofTr q₀ fun q => q.elim (tm₀.adaptedTr (.mapState next₀)) (tm₁.adaptedTr (.mapState next₁))
 
-/-- The wire of a first machine that runs in its own states: halting hands over to the second
-machine in its state `q₁`. -/
+/-- Where the steps of a first machine lead when it runs in its own states: halting hands over to
+the second machine in its state `q₁`. -/
 def handOver {State₀ State₁ : Type*} (q₁ : State₁) (state : Option State₀) :
     Option (State₀ ⊕ State₁) :=
   some (state.elim (.inr q₁) .inl)
@@ -155,36 +155,36 @@ def handOver {State₀ State₁ : Type*} (q₁ : State₁) (state : Option State
 @[simp] lemma handOver_none {State₀ State₁ : Type*} (q₁ : State₁) :
     handOver (State₀ := State₀) q₁ none = some (.inr q₁) := rfl
 
-section wire
+section combine
 
 variable {State₀ State₁ : Type*} {tm₀ : MultiTapeTM k Symbol State₀}
   {tm₁ : MultiTapeTM k Symbol State₁} {next₀ : Option State₀ → Option (State₀ ⊕ State₁)}
   {next₁ : Option State₁ → Option (State₀ ⊕ State₁)} {q₀ : State₀ ⊕ State₁}
 
-/-- In its states `inl q`, the wiring follows `tm₀`, its steps leading along `next₀`. -/
-lemma follows_wire_left : (wire tm₀ tm₁ next₀ next₁ q₀).Follows tm₀ .inl (.mapState next₀) :=
+/-- In its states `inl q`, the combined machine follows `tm₀`, its steps leading along `next₀`. -/
+lemma follows_combine_left : (combine tm₀ tm₁ next₀ next₁ q₀).Follows tm₀ .inl (.mapState next₀) :=
   fun _ _ _ h => tr_iff.mp h ▸ rfl
 
-/-- In its states `inr q`, the wiring follows `tm₁`, its steps leading along `next₁`. -/
-lemma follows_wire_right : (wire tm₀ tm₁ next₀ next₁ q₀).Follows tm₁ .inr (.mapState next₁) :=
+/-- In its states `inr q`, the combined machine follows `tm₁`, its steps leading along `next₁`. -/
+lemma follows_combine_right : (combine tm₀ tm₁ next₀ next₁ q₀).Follows tm₁ .inr (.mapState next₁) :=
   fun _ _ _ h => tr_iff.mp h ▸ rfl
 
-/-- If `next₀` keeps the live states of `tm₀` in `tm₀`, the wiring mirrors the running steps of
-`tm₀`, its states relabeled along `next₀`. -/
+/-- If `next₀` keeps the live states of `tm₀` in `tm₀`, the combined machine mirrors the running
+steps of `tm₀`, its states relabeled along `next₀`. -/
 @[simps! apply]
-noncomputable def wireLeftHom {input : List Symbol} (h : ∀ q, next₀ (some q) = some (.inl q)) :
-    (tm₀.runningStepRel input).Hom ((wire tm₀ tm₁ next₀ next₁ q₀).stepRel input) :=
-  follows_wire_left.runningStepHom (Cfg.mapState next₀) (fun _ _ hq => by simp [hq, h])
+noncomputable def combineLeftHom {input : List Symbol} (h : ∀ q, next₀ (some q) = some (.inl q)) :
+    (tm₀.runningStepRel input).Hom ((combine tm₀ tm₁ next₀ next₁ q₀).stepRel input) :=
+  follows_combine_left.runningStepHom (Cfg.mapState next₀) (fun _ _ hq => by simp [hq, h])
     (fun _ => rfl) fun _ _ => rfl
 
-/-- If the steps of `tm₁` stay in `tm₁`, the wiring mirrors them. -/
+/-- If the steps of `tm₁` stay in `tm₁`, the combined machine mirrors them. -/
 @[simps! apply]
-noncomputable def wireRightHom {input : List Symbol} :
-    (tm₁.stepRel input).Hom ((wire tm₀ tm₁ next₀ (Option.map .inr) q₀).stepRel input) :=
-  follows_wire_right.stepHom (Cfg.mapState (Option.map .inr)) (fun _ => rfl) (fun _ => rfl)
+noncomputable def combineRightHom {input : List Symbol} :
+    (tm₁.stepRel input).Hom ((combine tm₀ tm₁ next₀ (Option.map .inr) q₀).stepRel input) :=
+  follows_combine_right.stepHom (Cfg.mapState (Option.map .inr)) (fun _ => rfl) (fun _ => rfl)
     fun _ _ => rfl
 
-end wire
+end combine
 
 /-!
 ## Stepping a Turing Machine

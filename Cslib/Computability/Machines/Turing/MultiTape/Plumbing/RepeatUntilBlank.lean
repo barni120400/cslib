@@ -34,11 +34,11 @@ public def RepeatUntilBlank.blankTest (i : Fin k) : MultiTapeTM k Symbol Unit :=
     { inputTape := 0, workTapes := fun _ => (none, 0), output := none,
       state := (work i).map fun _ => () }
 
-/-- `tm` wired with the test of tape `i`: halting of `tm` goes to the test, which halts the loop if
-the cell under the head of tape `i` is blank and otherwise restarts `tm`. -/
+/-- `tm` combined with the test of tape `i`: halting of `tm` goes to the test, which halts the loop
+if the cell under the head of tape `i` is blank and otherwise restarts `tm`. -/
 public noncomputable abbrev repeatUntilBlank (i : Fin k) (tm : MultiTapeTM k Symbol State) :
     MultiTapeTM k Symbol (State ⊕ Unit) :=
-  wire tm (RepeatUntilBlank.blankTest i) (handOver ()) (Option.map fun _ => .inl tm.q₀)
+  combine tm (RepeatUntilBlank.blankTest i) (handOver ()) (Option.map fun _ => .inl tm.q₀)
     (.inl tm.q₀)
 
 namespace RepeatUntilBlank
@@ -52,7 +52,7 @@ lemma step_check (ws : Fin k → List Symbol) (out : List Symbol) :
       wordsCfg input (if ws i = [] then none else some (.inl tm.q₀)) ws out := by
   rw [step_of_state rfl]
   refine Cfg.ext ?_ ?_ ?_ ?_ ?_ <;> cases h : ws i <;>
-    simp [repeatUntilBlank, wire, adaptedTr, blankTest, Cfg.workTapeSymbols, tapeOfList_zero,
+    simp [repeatUntilBlank, combine, adaptedTr, blankTest, Cfg.workTapeSymbols, tapeOfList_zero,
       wordsCfg, Action.apply, SignType.cast, h]
 
 /-- One round of the loop. If `tm` transforms words satisfying `P` within `t` steps and `s` cells,
@@ -71,7 +71,7 @@ lemma exists_round {P : (input : List Symbol) → (Fin k → List Symbol) → Pr
   obtain ⟨w', e, hQ, p, hhead, hlast, htime, hspace⟩ := h input w out hP
   obtain ⟨q, hqhead, hqlast, hqlen, hqmem⟩ := p.exists_running (by rw [hlast]; rfl)
   let f : (tm.runningStepRel input).Hom ((repeatUntilBlank i tm).stepRel input) :=
-    wireLeftHom (handOver_some _)
+    combineLeftHom (handOver_some _)
   refine ⟨w', e, hQ, (q.map f).snoc
     (wordsCfg input (if w' i = [] then none else some (.inl tm.q₀)) w' (out ++ e))
     (by simp [f, hqlast, hlast, step_check]),
