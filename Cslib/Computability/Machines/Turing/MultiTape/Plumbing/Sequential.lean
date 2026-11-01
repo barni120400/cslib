@@ -26,6 +26,8 @@ second.
 * `Turing.MultiTapeTM.seq`: the composed machine.
 * `Turing.MultiTapeTM.exists_runPath_seq`: run paths compose, and the composed path visits only
   cells that the two paths visit.
+* `Turing.MultiTapeTM.RunsWithin.seq`: runs between arbitrary configurations compose, bounds
+  adding.
 * `Turing.MultiTapeTM.transformsTapes_seq`: transformations compose, bounds adding.
 -/
 
@@ -64,6 +66,34 @@ theorem exists_runPath_seq {p₀ : tm₀.RunPath input} (h₀ : p₀.last.Halted
     obtain ⟨c', hc', rfl⟩ := RelSeries.exists_of_mem_map hc
   · exact Finset.mem_union_left _ (p₀.mem_visitedByTapeHead.mpr ⟨c', hmem₀ c' hc', rfl⟩)
   · exact Finset.mem_union_right _ (p₁.mem_visitedByTapeHead.mpr ⟨c', hc', rfl⟩)
+
+/-- `tm` runs from `c` to `c'` in at most `t` steps, the head of each work tape `i` staying within
+`S i`. Unlike `TransformsTapes`, the configurations need not hold words. -/
+def RunsWithin {k : ℕ} {State : Type*} (tm : MultiTapeTM k Symbol State)
+    (c c' : Cfg k Symbol State input) (t : ℕ) (S : Fin k → Finset ℤ) : Prop :=
+  ∃ p : tm.RunPath input, p.head = c ∧ p.last = c' ∧ p.length ≤ t ∧
+    ∀ c ∈ p, ∀ i, c.workTapePos i ∈ S i
+
+/-- A run within some cells is a run within more. -/
+theorem RunsWithin.mono {c c' : Cfg k Symbol State₀ input} {t : ℕ} {S S' : Fin k → Finset ℤ}
+    (h : tm₀.RunsWithin c c' t S) (hS : ∀ i, S i ⊆ S' i) : tm₀.RunsWithin c c' t S' :=
+  let ⟨p, hh, hl, ht, hp⟩ := h
+  ⟨p, hh, hl, ht, fun c hc i => hS i (hp c hc i)⟩
+
+/-- **Sequential composition of runs.** A run of `tm₀` to a halted configuration, followed by a run
+of `tm₁` from there, is a run of `seq`, the times adding. -/
+theorem RunsWithin.seq {c c' : Cfg k Symbol State₀ input} {c'' : Cfg k Symbol State₁ input}
+    {t₀ t₁ : ℕ} {S : Fin k → Finset ℤ} (h₀ : tm₀.RunsWithin c c' t₀ S) (hc' : c'.Halted)
+    (h₁ : tm₁.RunsWithin (c'.withState (some tm₁.q₀)) c'' t₁ S) :
+    (tm₀.seq tm₁).RunsWithin (c.mapState (handOver tm₁.q₀)) (c''.mapState (Option.map .inr))
+      (t₀ + t₁) S := by
+  obtain ⟨p₀, rfl, rfl, ht₀, hS₀⟩ := h₀
+  obtain ⟨p₁, hh₁, rfl, ht₁, hS₁⟩ := h₁
+  obtain ⟨p, hh, hl, ht, hv⟩ := exists_runPath_seq hc' hh₁
+  refine ⟨p, hh, hl, ht.trans (add_le_add ht₀ ht₁), fun c hc i => ?_⟩
+  rcases Finset.mem_union.mp (hv i (p.mem_visitedByTapeHead.mpr ⟨c, hc, rfl⟩)) with h | h <;>
+    obtain ⟨c', hc', h⟩ := MultiTapeNTM.RunPath.mem_visitedByTapeHead _ |>.mp h <;> rw [← h]
+  exacts [hS₀ c' hc' i, hS₁ c' hc' i]
 
 /-- **Sequential composition of transformations.** If the postcondition of the first
 transformation implies the precondition of the second, the composed machine performs the two
