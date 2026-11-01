@@ -139,8 +139,8 @@ lemma step_nop (ws : Fin k → List Symbol) (out : List Symbol) :
 /-- `nop` reaches its halting configuration after exactly one step. -/
 @[simp]
 lemma runFrom_nop_one (ws : Fin k → List Symbol) (out : List Symbol) :
-    (nop k Symbol).runFrom (wordsCfg input (some ()) ws out) 1 = wordsCfg input none ws out := by
-  simpa only [runFrom, Function.iterate_one] using step_nop ws out
+    (nop k Symbol).runFrom (wordsCfg input (some ()) ws out) 1 = wordsCfg input none ws out :=
+  step_nop ws out
 
 /-- **The machine that does nothing** halts in one step, leaving every word as it was and emitting
 nothing. Its heads never move, so it visits one cell per tape. This is the first machine of the

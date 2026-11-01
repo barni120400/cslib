@@ -99,7 +99,7 @@ lemma runFrom_scan {w : List Symbol} (hw : t = tapeOfList w) {l : ℕ} (hl : l �
       ⟨some .scan, ip, fun _ z => if (l : ℤ) - n ≤ z ∧ z < l then write.getD (t z) else t z,
         fun _ => (l : ℤ) - 1 - n, out⟩ := by
   induction n with
-  | zero => simp [runFrom, show ∀ z : ℤ, ¬((l : ℤ) ≤ z ∧ z < l) by omega]
+  | zero => simp [show ∀ z : ℤ, ¬((l : ℤ) ≤ z ∧ z < l) by omega]
   | succ n ih =>
     have hsym : (fun z => if (l : ℤ) - n ≤ z ∧ z < l then write.getD (t z) else t z)
         ((l : ℤ) - 1 - n) = some (w[l - 1 - n]'(by omega)) := by
@@ -107,7 +107,7 @@ lemma runFrom_scan {w : List Symbol} (hw : t = tapeOfList w) {l : ℕ} (hl : l �
       rw [ite_eq_right (by omega), hw,
         show (l : ℤ) - 1 - n = ((l - 1 - n : ℕ) : ℤ) by omega, tapeOfList_ofNat]
       exact List.getElem?_eq_getElem (by omega)
-    rw [runFrom, Function.iterate_succ_apply', ← runFrom, ih (by omega), step_scan_some hsym]
+    rw [runFrom_succ', ih (by omega), step_scan_some hsym]
     congr 2
     · cases write with
       | none => simp
@@ -131,8 +131,8 @@ public theorem runFrom_rewindWork (write : Option (Option Symbol)) (ip : Fin (in
     (rewindWork Symbol write).runFrom
         ⟨some (rewindWork Symbol write).q₀, ip, fun _ => t, fun _ => (p : ℤ), out⟩ (p + 2) =
       ⟨none, ip, fun _ z => if 0 ≤ z ∧ z < p then write.getD (t z) else t z, fun _ => 0, out⟩ := by
-  rw [show (rewindWork Symbol write).q₀ = .start from rfl, runFrom, Function.iterate_succ_apply,
-    step_start, Function.iterate_succ_apply', ← runFrom, runFrom_scan hw hp p le_rfl,
+  rw [show (rewindWork Symbol write).q₀ = .start from rfl, runFrom_succ, step_start, runFrom_succ',
+    runFrom_scan hw hp p le_rfl,
     show (p : ℤ) - 1 - p = -1 by omega, step_scan_none (by simp [hw]; rfl)]
   simp
 
@@ -169,11 +169,11 @@ public theorem workTapePos_runFrom_rewindWork (write : Option (Option Symbol))
         ⟨some (rewindWork Symbol write).q₀, ip, fun _ => t, fun _ => (p : ℤ), out⟩
         m).workTapePos 0 ∈ Set.Icc (-1) (p : ℤ) := by
   rcases m with _ | m
-  · simp [runFrom]
+  · simp
   rcases Nat.lt_or_ge m (p + 1) with hlt | hge
   · -- After the initial left move, take `m` scanning steps.
-    rw [show (rewindWork Symbol write).q₀ = .start from rfl, runFrom, Function.iterate_succ_apply,
-      step_start, ← runFrom, runFrom_scan hw hp m (by omega)]
+    rw [show (rewindWork Symbol write).q₀ = .start from rfl, runFrom_succ, step_start,
+      runFrom_scan hw hp m (by omega)]
     simp only [Set.mem_Icc]
     constructor <;> omega
   · have hrun := runFrom_rewindWork write ip t out hw hp

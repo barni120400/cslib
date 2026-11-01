@@ -67,13 +67,13 @@ lemma runFrom_scan (n : ℕ) (hn : n ≤ input.length) :
   induction n with
   | zero => exact Cfg.ext_zero_tapes rfl rfl rfl
   | succ n ih =>
-    rw [runFrom, Function.iterate_succ_apply', ← runFrom, ih (by omega), step_scan (by omega)]
+    rw [runFrom_succ', ih (by omega), step_scan (by omega)]
 
 /-- The complete run: after `input.length + 1` steps the copy machine has halted with the input
 copied to the output. -/
 lemma runFrom_full (input : List Symbol) :
     copy.runFrom (copy.initCfg input) (input.length + 1) = cfg input none input.length := by
-  rw [runFrom, Function.iterate_succ_apply', ← runFrom, runFrom_scan _ le_rfl, step_halt]
+  rw [runFrom_succ', runFrom_scan _ le_rfl, step_halt]
 
 /-- The copy machine outputs its input unchanged, in `input.length + 1` steps and zero space. -/
 theorem computesInTimeAndSpace (input : List Symbol) :
