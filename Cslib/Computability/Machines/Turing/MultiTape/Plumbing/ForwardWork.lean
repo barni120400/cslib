@@ -55,12 +55,12 @@ lemma runFrom_walk {w : List Symbol} {p : ℕ} (n : ℕ) (hn : p + n ≤ w.lengt
         ⟨some (), inpos, fun _ => tapeOfList w, fun _ => (p : ℤ), out⟩ n =
       ⟨some (), inpos, fun _ => tapeOfList w, fun _ => (p : ℤ) + n, out⟩ := by
   induction n with
-  | zero => simp [runFrom]
+  | zero => simp
   | succ n ih =>
     have hsym : tapeOfList w ((p : ℤ) + n) = some (w[p + n]'(by lia)) := by
       rw [← Nat.cast_add, tapeOfList_ofNat]
       exact List.getElem?_eq_getElem (by lia)
-    rw [runFrom, Function.iterate_succ_apply', ← runFrom, ih (by lia), step_of_state rfl]
+    rw [runFrom_succ', ih (by lia), step_of_state rfl]
     simp [forwardWork, Action.apply, Cfg.workTapeSymbols, hsym, add_assoc]
 
 end ForwardWork
@@ -75,7 +75,7 @@ public theorem runFrom_forwardWork (inpos : Fin (input.length + 2)) (w : List Sy
         ⟨some (forwardWork Symbol).q₀, inpos, fun _ => tapeOfList w, fun _ => (p : ℤ), out⟩
         (n + 1) =
       ⟨none, inpos, fun _ => tapeOfList w, fun _ => (w.length : ℤ), out⟩ := by
-  rw [runFrom, Function.iterate_succ_apply', ← runFrom, runFrom_walk _ hpn.le,
+  rw [runFrom_succ', runFrom_walk _ hpn.le,
     show (p : ℤ) + n = w.length by lia, step_of_state rfl]
   simp [forwardWork, Action.apply, Cfg.workTapeSymbols]
 

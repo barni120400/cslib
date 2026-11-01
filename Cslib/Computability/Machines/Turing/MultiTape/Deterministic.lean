@@ -33,7 +33,8 @@ We define a number of structures and concepts related to multi-tape Turing machi
 * `tr`, `ofTr`: the derived transition function and construction from a function
 * `adapt`: the machine run through an adapter
 * `combine`: two machines on the same tapes combined into one
-* `step`, `runFrom`: the successor configuration and iteration of this function
+* `step`, `runFrom`: the successor configuration, and the last configuration of the path of a
+  given number of steps
 * `MultiTapeNTM.RunPath.ofDeterministic`, `MultiTapeNTM.ComputationPath.ofDeterministic`:
     paths of a given length from an arbitrary or initial configuration
 * `Computes`: the machine halts with the given output on an input
@@ -339,17 +340,29 @@ namespace MultiTapeTM
 
 variable {tm : MultiTapeTM k Symbol State}
 
-/-- The configuration reached by running the Turing machine for `t` steps from `cfg`.
-If the Turing machine halts, it will stay at the halting configuration. -/
+/-- The configuration reached by running the Turing machine for `t` steps from `cfg`: the last
+configuration of the path of `t` steps. If the Turing machine halts, it will stay at the halting
+configuration. -/
 noncomputable def runFrom (cfg : Cfg k Symbol State input) (t : ℕ) : Cfg k Symbol State input :=
-  tm.step^[t] cfg
+  (MultiTapeNTM.RunPath.ofDeterministic tm cfg t).last
 
-/-- Every path of a deterministic machine follows its iterated step function. -/
-lemma runPath_apply_eq_runFrom (p : tm.RunPath input) (i : Fin (p.length + 1)) :
-    p i = tm.runFrom p.head i := by
-  revert i
-  rw [p.eq_ofDeterministic]
-  exact fun _ ↦ rfl
+@[simp]
+lemma runFrom_zero (cfg : Cfg k Symbol State input) : tm.runFrom cfg 0 = cfg := rfl
+
+/-- One more step, taken first. -/
+lemma runFrom_succ (cfg : Cfg k Symbol State input) (t : ℕ) :
+    tm.runFrom cfg (t + 1) = tm.runFrom (tm.step cfg) t :=
+  Function.iterate_succ_apply tm.step t cfg
+
+/-- One more step, taken last. -/
+lemma runFrom_succ' (cfg : Cfg k Symbol State input) (t : ℕ) :
+    tm.runFrom cfg (t + 1) = tm.step (tm.runFrom cfg t) :=
+  Function.iterate_succ_apply' tm.step t cfg
+
+/-- Running `s + t` steps runs `t` steps, then `s` more. -/
+lemma runFrom_add (cfg : Cfg k Symbol State input) (s t : ℕ) :
+    tm.runFrom cfg (s + t) = tm.runFrom (tm.runFrom cfg t) s :=
+  Function.iterate_add_apply tm.step s t cfg
 
 /-- A deterministic computation ends at the corresponding iterate. -/
 lemma computationPath_last_eq_runFrom (p : tm.ComputationPath input) :
@@ -381,24 +394,6 @@ lemma runsInTime_of_halted {input : List Symbol} {t : ℕ}
   change p.last.Halted
   rw [computationPath_last_eq_runFrom p, runFrom_eq_of_halt _ _ hp h]
   exact h
-
-/-- In `t` steps the input head moves at most `t` positions to the right. -/
-lemma inputPos_runFrom_le (tm : MultiTapeTM k Symbol State)
-    (cfg : Cfg k Symbol State input) (t : ℕ) :
-    ((tm.runFrom cfg t).inputPos : ℕ) ≤ (cfg.inputPos : ℕ) + t := by
-  induction t with
-  | zero => simp [runFrom]
-  | succ t ih =>
-    rw [runFrom, Function.iterate_succ_apply', ← runFrom]
-    by_cases hq : (tm.runFrom cfg t).state = none
-    · rw [step_of_halt hq]
-      omega
-    · obtain ⟨q, hq⟩ := Option.ne_none_iff_exists'.mp hq
-      have h : ((tm.step (tm.runFrom cfg t)).inputPos : ℕ) ≤
-          ((tm.runFrom cfg t).inputPos : ℕ) + 1 := by
-        rw [step_inputPos_of_state hq]
-        exact val_moveInputPos_le _ _
-      omega
 
 /-- The machine eventually halts on `input` with the given `output`. -/
 def Computes (tm : MultiTapeTM k Symbol State) (input output : List Symbol) : Prop :=
