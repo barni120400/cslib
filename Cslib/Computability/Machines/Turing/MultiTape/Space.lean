@@ -82,6 +82,12 @@ def spaceUsedByTape (p : ntm.RunPath input) (i : Fin k) : ℕ :=
 /-- The number of work tape cells visited along a run path. -/
 def space (p : ntm.RunPath input) : ℕ := ∑ i, p.spaceUsedByTape i
 
+/-- Every work head visits at least the cell it starts on, so a path visits at least `k` cells. -/
+lemma le_space (p : ntm.RunPath input) : k ≤ p.space :=
+  calc k = ∑ _ : Fin k, 1 := by rw [← Finset.card_eq_sum_ones, Finset.card_univ, Fintype.card_fin]
+    _ ≤ p.space := Finset.sum_le_sum fun _ _ =>
+      Finset.card_pos.mpr (Finset.univ_nonempty.image _)
+
 /-- A set containing every position of a head along a path bounds the space used by its tape. -/
 lemma spaceUsedByTape_le_card (p : ntm.RunPath input) {i : Fin k} {S : Finset ℤ}
     (h : ∀ c ∈ p, c.workTapePos i ∈ S) : p.spaceUsedByTape i ≤ S.card :=
