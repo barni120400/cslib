@@ -43,6 +43,11 @@ def pairCfg (q : Option State) (ip : Fin (input.length + 2)) (W H : Fin k → �
     (x : Fin k → ℤ) (out : List Symbol) : Cfg (k + k) Symbol State input :=
   ⟨q, ip, Fin.append W H, Fin.append x x, out⟩
 
+/-- `Fin.append` at `i.addNat k`, the simp normal form of `Fin.natAdd k i` in `Fin (k + k)`. -/
+@[simp] lemma _root_.Fin.append_addNat {α : Sort*} (u v : Fin k → α) (i : Fin k) :
+    Fin.append u v (i.addNat k) = v i := by
+  rw [← Fin.natAdd_eq_addNat, Fin.append_right]
+
 /-- The sweeping machine. While some pair reads a helper symbol `h` with `go h`, every such pair
 writes `fW` of its work symbol and `fH h`, and moves by `d`; the other pairs wait. Once no pair
 goes, every pair writes `gH h` on its helper and moves by `e`, and the machine halts. -/
@@ -121,49 +126,54 @@ private lemma runFrom_sweep (hd : d ≠ 0) (ip : Fin (input.length + 2))
     refine Cfg.ext rfl (by simp [Action.apply]) (funext fun j => ?_) (funext fun j => ?_)
       (by simp [Action.apply]) <;> refine Fin.addCases (fun i => ?_) (fun i => ?_) j <;>
       by_cases h : n < m i <;>
-      simp [-Fin.natAdd_eq_addNat, Action.apply, pairCfg, h, walked_succ hd, walked_self hd,
+      simp [Action.apply, pairCfg, h, walked_succ hd, walked_self hd,
         add_assoc, mul_add, show n < m i → min (n + 1) (m i) = n + 1 by omega,
         show n < m i → min n (m i) = n by omega, show ¬ n < m i → min (n + 1) (m i) = m i by omega,
         show ¬ n < m i → min n (m i) = m i by omega]
 
-/-- **The run of a sweep.** If pair `i` reads helper symbols satisfying `go` on its first `m i`
-cells in direction `d` and fails `go` on the next, the sweep walks each pair those `m i` cells,
-rewriting them, and then performs its final step, in `max m + 1` steps. The heads stay in `S` if
-every cell walked over and every final position is in `S`. -/
-theorem sweep_runsWithin (hd : d ≠ 0) (ip : Fin (input.length + 2))
-    (W H : Fin k → ℤ → Option Symbol) (x : Fin k → ℤ) (out : List Symbol) (m : Fin k → ℕ)
-    (hgo : ∀ i, ∀ j < m i, go (H i (x i + d * j)) = true)
-    (hstop : ∀ i, go (H i (x i + d * m i)) = false) {S : Fin k → Finset ℤ}
-    (hS : ∀ i, ∀ j ≤ m i, x i + d * j ∈ S i) (hS' : ∀ i, x i + d * m i + e ∈ S i) :
+variable {ip : Fin (input.length + 2)} {W H W' H' : Fin k → ℤ → Option Symbol} {x y : Fin k → ℤ}
+  {out : List Symbol}
+
+/-- **The run of a sweep.** If pair `i` reads helper symbols satisfying `go` on its first
+`m i ≤ n` cells in direction `d` and fails `go` on the next, the sweep walks each pair over those
+cells, leaving the tapes `W'` and `H'` and the heads at `y`, in at most `n + 1` steps. The heads
+stay in `S` if the cells walked over and the ends are in `S`. -/
+theorem sweep_runsWithin (hd : d ≠ 0) (m : Fin k → ℕ) {n : ℕ} (hn : ∀ i, m i ≤ n)
+    (hgo : ∀ i, ∀ j < m i, go (H i (x i + d * j)))
+    (hstop : ∀ i, go (H i (x i + d * m i)) = false)
+    (hW : ∀ i, walked d fW (x i) (m i) (W i) = W' i)
+    (hH : ∀ i, Function.update (walked d fH (x i) (m i) (H i)) (x i + d * m i)
+      (gH (H i (x i + d * m i))) = H' i)
+    (hy : ∀ i, x i + d * m i + e = y i) {S : Fin k → Finset ℤ}
+    (hS : ∀ i, ∀ j ≤ m i, x i + d * j ∈ S i) (hS' : ∀ i, y i ∈ S i) :
     (sweep go fW fH d gH e).RunsWithin (pairCfg (some ()) ip W H x out)
-      (pairCfg none ip (fun i => walked d fW (x i) (m i) (W i))
-        (fun i => Function.update (walked d fH (x i) (m i) (H i)) (x i + d * m i)
-          (gH (H i (x i + d * m i)))) (fun i => x i + d * m i + e) out)
-      (Finset.univ.sup m + 1) (Fin.append S S) := by
-  have hmin : ∀ i, min (Finset.univ.sup m) (m i) = m i := fun i =>
-    min_eq_right (Finset.le_sup (Finset.mem_univ i))
+      (pairCfg none ip W' H' y out) (n + 1) (Fin.append S S) := by
+  obtain rfl : W' = _ := funext fun i => (hW i).symm
+  obtain rfl : H' = _ := funext fun i => (hH i).symm
+  obtain rfl : y = _ := funext fun i => (hy i).symm
   have hlast : (sweep go fW fH d gH e).step ((sweep go fW fH d gH e).runFrom
       (pairCfg (some ()) ip W H x out) (Finset.univ.sup m)) = pairCfg none ip
         (fun i => walked d fW (x i) (m i) (W i))
         (fun i => Function.update (walked d fH (x i) (m i) (H i)) (x i + d * m i)
           (gH (H i (x i + d * m i)))) (fun i => x i + d * m i + e) out := by
     rw [runFrom_sweep hd ip W H x out m hgo hstop _ le_rfl, step_of_state rfl]
-    simp only [hmin, sweep, tr_ofTr, Cfg.workTapeSymbols, pairCfg_workTapes, pairCfg_workTapePos,
-      Fin.append_right, walked_self hd, hstop, implies_true, ite_true]
+    simp only [fun i => min_eq_right (Finset.le_sup (f := m) (Finset.mem_univ i)), sweep, tr_ofTr,
+      Cfg.workTapeSymbols, pairCfg_workTapes, pairCfg_workTapePos, Fin.append_right,
+      walked_self hd, hstop, implies_true, ite_true]
     refine Cfg.ext rfl (by simp [Action.apply]) (funext fun j => ?_) (funext fun j => ?_)
       (by simp [Action.apply]) <;> refine Fin.addCases (fun i => ?_) (fun i => ?_) j <;>
-      simp [-Fin.natAdd_eq_addNat, Action.apply, pairCfg]
+      simp [Action.apply, pairCfg]
   refine ⟨.ofDeterministic _ (pairCfg (some ()) ip W H x out) (Finset.univ.sup m + 1), rfl,
-    (Function.iterate_succ_apply' _ _ _).trans hlast, le_rfl, ?_⟩
+    (Function.iterate_succ_apply' _ _ _).trans hlast,
+    Nat.succ_le_succ (Finset.sup_le fun i _ => hn i), ?_⟩
   rintro _ ⟨⟨n, hn⟩, rfl⟩ j
   change (runFrom _ n).workTapePos j ∈ _
   change n < Finset.univ.sup m + 1 + 1 at hn
   rcases Nat.lt_succ_iff_lt_or_eq.mp hn with hn | rfl
   · rw [runFrom_sweep hd ip W H x out m hgo hstop n (by omega)]
-    refine Fin.addCases (fun i => ?_) (fun i => ?_) j <;>
-      simpa [-Fin.natAdd_eq_addNat, pairCfg] using hS i _ (min_le_right n (m i))
+    exact Fin.addCases (fun i => by simpa using hS i _ (min_le_right n (m i)))
+      (fun i => by simpa using hS i _ (min_le_right n (m i))) j
   · rw [runFrom, Function.iterate_succ_apply', ← runFrom, hlast]
-    refine Fin.addCases (fun i => ?_) (fun i => ?_) j <;>
-      simpa [-Fin.natAdd_eq_addNat, pairCfg] using hS' i
+    exact Fin.addCases (fun i => by simpa using hS' i) (fun i => by simpa using hS' i) j
 
 end Turing.MultiTapeTM

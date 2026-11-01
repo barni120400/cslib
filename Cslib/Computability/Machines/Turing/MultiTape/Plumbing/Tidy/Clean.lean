@@ -74,88 +74,80 @@ namespace Tidy
 
 variable {origin mark : Symbol}
 
-/-- A helper tape holding `origin` at `0` and `mark` on the rest of `[l, r]`. -/
+/-- A helper tape marking `[l, r]`: `origin` at `0` and `mark` on the other cells. -/
 def helperTape (origin mark : Symbol) (l r z : ℤ) : Option Symbol :=
-  if z = 0 then some origin else if l ≤ z ∧ z ≤ r then some mark else none
+  if l ≤ z ∧ z ≤ r then some (if z = 0 then origin else mark) else none
 
-lemma helperTape_zero : Function.update (fun _ => none) 0 (some origin) =
-    helperTape origin mark 0 0 := by
+lemma helperTape_zero :
+    Function.update (fun _ => none) 0 (some origin) = helperTape origin mark 0 0 := by
   funext z
-  by_cases hz : z = 0 <;> simp [helperTape, hz]
-  omega
+  grind [helperTape, Function.update_apply]
 
-/-- Marking a cell next to or within the marked interval extends the interval to it. -/
+/-- Marking a cell next to or within a marked interval around `0` extends the interval to it. -/
 lemma helperTape_update {l r x : ℤ} (hl : l ≤ 0) (hr : 0 ≤ r) (hx : l - 1 ≤ x ∧ x ≤ r + 1) :
     Function.update (helperTape origin mark l r) x
         (some ((helperTape origin mark l r x).getD mark)) =
       helperTape origin mark (min l x) (max r x) := by
   funext z
-  by_cases hz : z = x
-  · subst hz
-    simp only [Function.update_self, helperTape]
-    split_ifs <;> simp_all
-  · simp only [Function.update_of_ne hz, helperTape]
-    split_ifs <;> simp_all
-    omega
-
-lemma helperTape_isSome {l r z : ℤ} (hl : l ≤ 0) (hr : 0 ≤ r) :
-    (helperTape origin mark l r z).isSome = decide (l ≤ z ∧ z ≤ r) := by
-  unfold helperTape
-  split_ifs <;> simp_all
+  grind [helperTape, Function.update_apply]
 
 variable (origin mark) in
-/-- `C` is the configuration `c` with marks on `[l i, r i]` around the origin, which contains the
-nonblank cells of work tape `i` and the cells next to head `i`. -/
-def Tracks (c : Cfg k Symbol State input) (C : Cfg (k + k) Symbol State input) : Prop :=
+/-- `C` is `c` with marks on `[l i, r i]` around the origin, which lie in `V i`, contain the
+nonblank cells of work tape `i` and reach to the cells next to head `i`. -/
+def Tracks (V : Fin k → Finset ℤ) (c : Cfg k Symbol State input)
+    (C : Cfg (k + k) Symbol State input) : Prop :=
   ∃ l r : Fin k → ℤ, C = pairCfg c.state c.inputPos c.workTapes
       (fun i => helperTape origin mark (l i) (r i)) c.workTapePos c.output ∧
     ∀ i, l i ≤ 0 ∧ 0 ≤ r i ∧ l i - 1 ≤ c.workTapePos i ∧ c.workTapePos i ≤ r i + 1 ∧
-      ∀ z, c.workTapes i z ≠ none → l i ≤ z ∧ z ≤ r i
+      Finset.Icc (l i) (r i) ⊆ V i ∧ ∀ z, c.workTapes i z ≠ none → l i ≤ z ∧ z ≤ r i
 
-/-- **Tracking a run.** A run of `tm` to a halted configuration lifts to a run of `track tm mark`,
-each of whose configurations tracks one of the run of `tm`. -/
-lemma exists_runPath_track {tm : MultiTapeTM k Symbol State} (p : tm.RunPath input)
-    (hp : p.last.Halted) {C : Cfg (k + k) Symbol State input} (hC : Tracks origin mark p.head C) :
-    ∃ P : (track tm mark).RunPath input, P.head = C ∧ P.length ≤ p.length ∧
-      Tracks origin mark p.last P.last ∧ ∀ D ∈ P, ∃ c ∈ p, Tracks origin mark c D := by
+/-- **Tracking a run.** A run of `tm` to a halted configuration lifts to a run of `track tm mark`
+of at most the same length within the cells the run of `tm` visits, ending in a configuration that
+tracks its end. -/
+lemma runsWithin_track {tm : MultiTapeTM k Symbol State} (p : tm.RunPath input)
+    (hp : p.last.Halted) {C : Cfg (k + k) Symbol State input}
+    (hC : Tracks origin mark p.visitedByTapeHead p.head C) :
+    ∃ C', (track tm mark).RunsWithin C C' p.length
+      (Fin.append p.visitedByTapeHead p.visitedByTapeHead) ∧
+      Tracks origin mark p.visitedByTapeHead p.last C' := by
   -- a running step of `tm` is a step of `track tm mark`, which marks the cell it leaves
   have hR {c c' : Cfg k Symbol State input} {C : Cfg (k + k) Symbol State input}
-      (hstep : (c, c') ∈ tm.runningStepRel input) (hC : Tracks origin mark c C) :
-      ∃ C', (C, C') ∈ (track tm mark).stepRel input ∧ Tracks origin mark c' C' := by
+      (hstep : (c, c') ∈ tm.runningStepRel input)
+      (hc : ∀ i, c.workTapePos i ∈ p.visitedByTapeHead i)
+      (hC : Tracks origin mark p.visitedByTapeHead c C) :
+      ∃ C', (C, C') ∈ (track tm mark).stepRel input ∧
+        Tracks origin mark p.visitedByTapeHead c' C' := by
     obtain ⟨l, r, rfl, hinv⟩ := hC
     obtain ⟨hrun, hs⟩ := hstep
     refine ⟨_, follows_adapt.step hs Option.map_id_apply (absurd · hrun) ?_ fun a ha => ?_,
       fun i => min (l i) (c.workTapePos i), fun i => max (r i) (c.workTapePos i), rfl, fun i => ?_⟩
-    · exact HeadSymbols.ext rfl (funext fun i => by
-        simp [-Fin.natAdd_eq_addNat, Cfg.workTapeSymbols, pairCfg])
+    · exact HeadSymbols.ext rfl (funext fun i => by simp [Cfg.workTapeSymbols, pairCfg])
     · subst ha
       refine Cfg.ext rfl rfl (funext fun j => ?_) (funext fun j => ?_) rfl <;>
         refine Fin.addCases (fun i => ?_) (fun i => ?_) j <;>
-        simp [-Fin.natAdd_eq_addNat, Action.apply, pairCfg, Cfg.workTapeSymbols,
+        simp [Action.apply, pairCfg, Cfg.workTapeSymbols,
           helperTape_update (hinv i).1 (hinv i).2.1 ⟨(hinv i).2.2.1, (hinv i).2.2.2.1⟩]
-    · have hm := abs_le.mp (MultiTapeNTM.Step.workTapePos_le hs i)
-      obtain ⟨h1, h2, h3, h4, h5⟩ := hinv i
-      dsimp only
-      refine ⟨by omega, by omega, by omega, by omega, fun z hz => ?_⟩
-      by_cases hzi : z = c.workTapePos i
-      · omega
-      · have := h5 z (MultiTapeNTM.Step.workTapes_eq_of_ne hs hzi ▸ hz)
-        omega
+    · have := abs_le.mp (MultiTapeNTM.Step.workTapePos_le hs i)
+      have := hinv i; have := hc i
+      have := fun z (hz : z ≠ c.workTapePos i) => MultiTapeNTM.Step.workTapes_eq_of_ne hs hz
+      grind
   obtain ⟨q, hqh, hql, hqlen, hqmem⟩ := p.exists_running hp
-  obtain ⟨P, hPh, hPlen, hPlast, hPmem⟩ := RelSeries.exists_lift _ hR q (hqh ▸ hC)
-  exact ⟨P, hPh, hPlen.trans_le hqlen, hql ▸ hPlast, fun D hD =>
-    let ⟨c, hc, hcD⟩ := hPmem D hD; ⟨c, hqmem c hc, hcD⟩⟩
+  have hV {c} (hc : c ∈ q) i : c.workTapePos i ∈ p.visitedByTapeHead i :=
+    p.mem_visitedByTapeHead.2 ⟨c, hqmem c hc, rfl⟩
+  obtain ⟨P, hPh, hPlen, hPlast, hPmem⟩ := RelSeries.exists_lift _ _ hR q (fun _ => hV) (hqh ▸ hC)
+  refine ⟨_, ⟨P, hPh, rfl, hPlen.trans_le hqlen, fun D hD j => ?_⟩, hql ▸ hPlast⟩
+  obtain ⟨c, hc, -, -, rfl, -⟩ := hPmem D hD
+  exact Fin.addCases (fun i => by simpa using hV hc i) (fun i => by simpa using hV hc i) j
 
 /-- Blank word tapes, as pairs of tapes. -/
 lemma wordsCfg_eq_pairCfg (q : Option State) (out : List Symbol) :
     wordsCfg input q (fun _ : Fin (k + k) => []) out =
       pairCfg q 1 (fun _ _ => none) (fun _ _ => none) (fun _ => 0) out := by
   refine Cfg.ext rfl rfl (funext fun j => ?_) (funext fun j => ?_) rfl <;>
-    refine Fin.addCases (fun i => ?_) (fun i => ?_) j <;>
-    simp [-Fin.natAdd_eq_addNat, pairCfg, wordsCfg]
+    refine Fin.addCases (fun i => ?_) (fun i => ?_) j <;> simp [pairCfg, wordsCfg]
 
 variable {ip : Fin (input.length + 2)} {W : Fin k → ℤ → Option Symbol} {out : List Symbol}
-  {S : Fin k → Finset ℤ}
+  {S : Fin k → Finset ℤ} {l r : Fin k → ℤ} {n : ℕ}
 
 /-- Rewinding the input head leaves the pairs of tapes alone. -/
 lemma rewind_runsWithin (H : Fin k → ℤ → Option Symbol) {x : Fin k → ℤ} (hS : ∀ i, x i ∈ S i) :
@@ -172,107 +164,57 @@ lemma rewind_runsWithin (H : Fin k → ℤ → Option Symbol) {x : Fin k → ℤ
   · rintro _ ⟨n, rfl⟩ j
     change (runFrom _ n.val).workTapePos j ∈ _
     rw [runFrom_noTapes]
-    refine Fin.addCases (fun i => ?_) (fun i => ?_) j <;>
-      simpa [-Fin.natAdd_eq_addNat] using hS i
+    exact Fin.addCases (fun i => by simpa using hS i) (fun i => by simpa using hS i) j
 
 /-- A sweep in which no pair walks rewrites the helper cell under each head by `g`, in one step. -/
 lemma mark_runsWithin (g : Option Symbol → Option Symbol) {H H' : Fin k → ℤ → Option Symbol}
     {x : Fin k → ℤ} (hH : ∀ i, Function.update (H i) (x i) (g (H i (x i))) = H' i)
     (hS : ∀ i, x i ∈ S i) :
     (sweep (fun _ => false) id id 1 g 0).RunsWithin (pairCfg (some ()) ip W H x out)
-      (pairCfg none ip W H' x out) 1 (Fin.append S S) := by
-  have h := sweep_runsWithin (go := fun _ => false) (fW := id) (fH := id) (d := 1) (gH := g)
-    (e := 0) (by decide) ip W H x out (fun _ => 0) (by simp) (by simp)
-    (fun i j hj => by simpa [show j = 0 by omega] using hS i) (fun i => by simpa using hS i)
-  rw [show Finset.univ.sup (fun _ : Fin k => 0) = 0 from Finset.sup_bot _] at h
-  simpa [hH] using h
+      (pairCfg none ip W H' x out) (0 + 1) (Fin.append S S) :=
+  sweep_runsWithin one_ne_zero 0 (fun _ => le_rfl) (by simp) (fun _ => rfl) (fun _ => walked_zero)
+    (by simpa using hH) (by simp) (by simpa using hS) hS
+
+/-- Proves a walk over marked intervals by `sweep_runsWithin` with `m i` steps on pair `i`, from
+the bounds `h` and the cells `hS`. -/
+local macro "sweep_tac " m:term:max h:ident hS:ident : tactic => `(tactic|
+  (refine sweep_runsWithin (by decide) $m ?_ ?_ ?_ ?_ ?_ ?_ ?_ ?_ <;> intro i <;> have := $h i <;>
+    intros <;> (try funext z) <;> (try refine $hS i ?_) <;> (try simp only [walked_id]) <;>
+    grind [walked, helperTape, Function.update_apply, SignType.coe_zero, SignType.coe_one,
+      SignType.coe_neg_one]))
 
 /-- Walking right from heads within the marked intervals to their right ends. -/
-lemma right_runsWithin {l r x : Fin k → ℤ} (hl : ∀ i, l i ≤ 0) (hr : ∀ i, 0 ≤ r i)
-    (hx : ∀ i, l i ≤ x i ∧ x i ≤ r i) (hS : ∀ i, Finset.Icc (l i - 1) (r i + 1) ⊆ S i) :
+lemma right_runsWithin {x : Fin k → ℤ} (h : ∀ i, l i ≤ x i ∧ x i ≤ r i ∧ r i - l i + 1 ≤ n)
+    (hS : ∀ i, Finset.Icc (l i - 1) (r i + 1) ⊆ S i) :
     (sweep Option.isSome id id 1 id (-1)).RunsWithin
       (pairCfg (some ()) ip W (fun i => helperTape origin mark (l i) (r i)) x out)
-      (pairCfg none ip W (fun i => helperTape origin mark (l i) (r i)) r out)
-      (Finset.univ.sup (fun i => (r i - x i + 1).toNat) + 1) (Fin.append S S) := by
-  have h := sweep_runsWithin (go := Option.isSome) (fW := id) (fH := id) (d := 1) (gH := id)
-    (e := -1) (by decide) ip W (fun i => helperTape origin mark (l i) (r i)) x out
-    (fun i => (r i - x i + 1).toNat)
-    (fun i j hj => by simp [helperTape_isSome (hl i) (hr i)]; have := hx i; omega)
-    (fun i => by simp [helperTape_isSome (hl i) (hr i)]; have := hx i; omega)
-    (fun i j hj => hS i (by simp [SignType.cast]; have := hx i; omega))
-    (fun i => hS i (by simp [SignType.cast]; have := hx i; omega))
-  convert h using 2 <;> funext i
-  · simp
-  · simp
-  · have := hx i
-    simp [SignType.cast]
-    omega
+      (pairCfg none ip W (fun i => helperTape origin mark (l i) (r i)) r out) (n + 1)
+      (Fin.append S S) := by
+  sweep_tac (fun i => (r i - x i + 1).toNat) h hS
 
 /-- Walking right from left of the marked intervals to the origin, and erasing it. -/
-lemma home_runsWithin {l r : Fin k → ℤ} (hl : ∀ i, l i ≤ 0) (hr : ∀ i, 0 ≤ r i)
+lemma home_runsWithin (h : ∀ i, l i ≤ 0 ∧ 0 ≤ r i ∧ r i - l i + 1 ≤ n)
     (hS : ∀ i, Finset.Icc (l i - 1) (r i + 1) ⊆ S i) :
     (sweep Option.isNone id id 1 (fun _ => none) 0).RunsWithin
       (pairCfg (some ()) ip (fun _ _ => none) (fun _ => helperTape origin mark 0 0)
         (fun i => l i - 1) out)
-      (pairCfg none ip (fun _ _ => none) (fun _ _ => none) (fun _ => 0) out)
-      (Finset.univ.sup (fun i => (1 - l i).toNat) + 1) (Fin.append S S) := by
-  have hm : ∀ i, ((1 - l i).toNat : ℤ) = 1 - l i := fun i =>
-    Int.toNat_of_nonneg (by have := hl i; omega)
-  have h := sweep_runsWithin (go := Option.isNone) (fW := id) (fH := id) (d := 1)
-    (gH := fun _ => none) (e := 0) (by decide) ip (fun _ _ => none)
-    (fun _ => helperTape origin mark 0 0) (fun i => l i - 1) out (fun i => (1 - l i).toNat)
-    (fun i j hj => by
-      have := hm i
-      simp only [helperTape, SignType.coe_one, one_mul]
-      split_ifs <;> first | rfl | omega)
-    (fun i => by simp [helperTape, SignType.cast, hm])
-    (fun i j hj => hS i (by have := hm i; have := hr i; simp [SignType.cast]; omega))
-    (fun i => hS i (by have := hl i; have := hr i; simp [SignType.cast, hm]; omega))
-  convert h using 2 <;> funext i
-  · simp
-  · funext z
-    simp only [walked_id, Function.update_apply, helperTape, SignType.cast, hm]
-    split_ifs <;> first | rfl | omega
-  · simp [SignType.cast, hm]
+      (pairCfg none ip (fun _ _ => none) (fun _ _ => none) (fun _ => 0) out) (n + 1)
+      (Fin.append S S) := by
+  sweep_tac (fun i => (1 - l i).toNat) h hS
 
 variable [DecidableEq Symbol]
 
 /-- Walking left from the right ends of the marked intervals past their left ends, erasing the
 work tapes and every mark but the origin. -/
-lemma erase_runsWithin (hom : origin ≠ mark) {l r : Fin k → ℤ} (hl : ∀ i, l i ≤ 0)
-    (hr : ∀ i, 0 ≤ r i) (hW : ∀ i z, W i z ≠ none → l i ≤ z ∧ z ≤ r i)
+lemma erase_runsWithin (hom : origin ≠ mark) (h : ∀ i, l i ≤ 0 ∧ 0 ≤ r i ∧ r i - l i + 1 ≤ n)
+    (hW : ∀ i z, W i z ≠ none → l i ≤ z ∧ z ≤ r i)
     (hS : ∀ i, Finset.Icc (l i - 1) (r i + 1) ⊆ S i) :
     (sweep Option.isSome (fun _ => none) (fun h => if h = some origin then h else none) (-1) id
       0).RunsWithin
       (pairCfg (some ()) ip W (fun i => helperTape origin mark (l i) (r i)) r out)
       (pairCfg none ip (fun _ _ => none) (fun _ => helperTape origin mark 0 0) (fun i => l i - 1)
-        out)
-      (Finset.univ.sup (fun i => (r i - l i + 1).toNat) + 1) (Fin.append S S) := by
-  have h := sweep_runsWithin (go := Option.isSome) (fW := fun _ => none)
-    (fH := fun h => if h = some origin then h else none) (d := -1) (gH := id) (e := 0)
-    (by decide)
-    ip W (fun i => helperTape origin mark (l i) (r i)) r out (fun i => (r i - l i + 1).toNat)
-    (fun i j hj => by simp [helperTape_isSome (hl i) (hr i), SignType.cast]; have := hr i; omega)
-    (fun i => by simp [helperTape_isSome (hl i) (hr i), SignType.cast]; have := hr i; omega)
-    (fun i j hj => hS i (by simp [SignType.cast]; have := hr i; have := hl i; omega))
-    (fun i => hS i (by simp [SignType.cast]; have := hr i; have := hl i; omega))
-  have hm : ∀ i, ((r i - l i + 1).toNat : ℤ) = r i - l i + 1 := fun i =>
-    Int.toNat_of_nonneg (by have := hr i; have := hl i; omega)
-  convert h using 2 <;> funext i
-  · funext z
-    simp only [walked, SignType.cast, hm]
-    split_ifs with hz
-    · rfl
-    · by_contra hne
-      have := hW i z (Ne.symm hne)
-      omega
-  · funext z
-    have := hl i
-    have := hr i
-    simp only [walked, SignType.cast, hm, Function.update_apply, helperTape, id]
-    split_ifs <;> simp_all [Ne.symm hom] <;> omega
-  · simp [SignType.cast, hm]
-    omega
+        out) (n + 1) (Fin.append S S) := by
+  sweep_tac (fun i => (r i - l i + 1).toNat) h hS
 
 end Tidy
 
@@ -292,82 +234,54 @@ public theorem ComputesInTimeAndSpace.computesTidily_tidy [DecidableEq Symbol]
   have hp0 : p.head = tm.initCfg input := c₀.head_eq
   change p.length ≤ t at ht
   change p.space ≤ s at hs
-  -- the run of `tm`, tracked: the helpers mark intervals `[l i, r i]`
-  obtain ⟨P, hPh, hPlen, ⟨l, r, hPl, hinv⟩, hPmem⟩ := exists_runPath_track (origin := origin)
-    (mark := mark) p hp (C := pairCfg (some tm.q₀) 1 (fun _ _ => none)
-      (fun _ => helperTape origin mark 0 0) (fun _ => 0) [])
-    ⟨fun _ => 0, fun _ => 0, by rw [hp0]; rfl, fun _ => by simp [hp0]⟩
+  have hV0 i : (0 : ℤ) ∈ p.visitedByTapeHead i :=
+    p.mem_visitedByTapeHead.2 ⟨_, p.head_mem, by rw [hp0]; rfl⟩
+  -- the run of `tm`, tracked: the helpers mark intervals `[l i, r i]` of visited cells
+  obtain ⟨_, h₁, l, r, rfl, hinv⟩ := runsWithin_track (origin := origin) (mark := mark) p hp
+    (C := pairCfg (some tm.q₀) 1 (fun _ _ => none) (fun _ => helperTape origin mark 0 0)
+      (fun _ => 0) []) ⟨0, 0, by rw [hp0]; rfl, fun i => by simp [hp0, hV0]⟩
+  rw [show p.last.state = none from hp] at h₁
   set x := p.last.workTapePos
   obtain ⟨L, hL⟩ : ∃ L : Fin k → ℤ, ∀ i, L i = min (l i) (x i) := ⟨_, fun _ => rfl⟩
   obtain ⟨R, hR⟩ : ∃ R : Fin k → ℤ, ∀ i, R i = max (r i) (x i) := ⟨_, fun _ => rfl⟩
-  have hPpos : ∀ D ∈ P, ∃ c ∈ p, D.workTapePos = Fin.append c.workTapePos c.workTapePos :=
-    fun D hD => let ⟨c, hc, _, _, hcD, _⟩ := hPmem D hD; ⟨c, hc, hcD ▸ rfl⟩
-  -- the cells between the ends of the marks were visited by `tm`
-  have hIcc : ∀ i, Finset.Icc (L i) (R i) ⊆ p.visitedByTapeHead i := by
-    intro i z hz
-    rw [Finset.mem_Icc, hL, hR] at hz
-    obtain ⟨h1, h2, h3, h4, -⟩ := hinv i
-    rw [MultiTapeNTM.RunPath.mem_visitedByTapeHead]
-    by_cases hzx : z = x i
-    · exact ⟨p.last, RelSeries.last_mem _, hzx.symm⟩
-    by_cases hz0 : z = 0
-    · exact ⟨p.head, RelSeries.head_mem _, by rw [hz0, hp0]; rfl⟩
-    have hlr : l i ≤ z ∧ z ≤ r i := by omega
-    obtain ⟨D, hD, hDz⟩ := P.mem_visitedByTapeHead.mp (P.mem_visitedByTapeHead_of_workTapes_ne
-      (i := Fin.natAdd k i) (z := z) (by
-        rw [hPl, hPh]
-        simp [-Fin.natAdd_eq_addNat, helperTape, hz0, hlr]
-        omega))
-    obtain ⟨c, hc, hcD⟩ := hPpos D hD
-    exact ⟨c, hc, by simpa [-Fin.natAdd_eq_addNat, hcD] using hDz⟩
-  -- every head of every phase stays in `S' i`, at most two cells more than `tm` visits
-  set S' : Fin k → Finset ℤ := fun i => insert (L i - 1) (insert (R i + 1) (p.visitedByTapeHead i))
-  have hS : ∀ i, Finset.Icc (L i - 1) (R i + 1) ⊆ S' i := fun i z hz => by
-    rw [Finset.mem_Icc] at hz
-    rcases (by omega : z = L i - 1 ∨ z = R i + 1 ∨ (L i ≤ z ∧ z ≤ R i)) with rfl | rfl | hz'
-    · simp [S']
-    · simp [S']
-    · exact Finset.mem_insert_of_mem (Finset.mem_insert_of_mem (hIcc i (Finset.mem_Icc.mpr hz')))
-  have hmem : ∀ i z, L i - 1 ≤ z → z ≤ R i + 1 → z ∈ S' i := fun i z h1 h2 =>
-    hS i (Finset.mem_Icc.mpr ⟨h1, h2⟩)
-  have hb : ∀ i, L i ≤ 0 ∧ 0 ≤ R i ∧ L i ≤ x i ∧ x i ≤ R i := fun i => by
-    have := hL i; have := hR i; have := hinv i; omega
-  have hsi : ∀ i, (R i + 1 - L i).toNat ≤ s := fun i => by
-    rw [← Int.card_Icc]
-    exact (Finset.card_le_card (hIcc i)).trans
+  -- marking the cells under the heads extends the intervals to `[L i, R i]`, still visited
+  have hIcc i : Finset.Icc (L i) (R i) ⊆ p.visitedByTapeHead i := by
+    have := hinv i; have := hL i; have := hR i
+    have : x i ∈ p.visitedByTapeHead i := p.mem_visitedByTapeHead.2 ⟨_, p.last_mem, rfl⟩
+    grind
+  have hw i : L i ≤ 0 ∧ 0 ≤ R i ∧ R i - L i + 1 ≤ s := by
+    have := (Finset.card_le_card (hIcc i)).trans
       ((Finset.single_le_sum (fun _ _ => Nat.zero_le _) (Finset.mem_univ i)).trans hs)
-  -- the seven phases
-  have h₀ := mark_runsWithin (input := input) (ip := 1) (W := fun _ _ => none) (out := []) (S := S')
-    (fun _ => some origin) (H' := fun _ => helperTape origin mark 0 0) (x := fun _ => 0)
-    (fun _ => helperTape_zero) (fun i => hmem i 0 (by have := hb i; omega) (by have := hb i; omega))
-  have h₁ : (track tm mark).RunsWithin _
-      (pairCfg none p.last.inputPos p.last.workTapes (fun i => helperTape origin mark (l i) (r i))
-        x p.last.output) t (Fin.append S' S') := ⟨P, hPh, by rw [hPl, show p.last.state = none
-      from hp], hPlen.trans ht, fun D hD j => by
-    obtain ⟨c, hc, hcD⟩ := hPpos D hD
-    have hc' : ∀ i, c.workTapePos i ∈ S' i := fun i => Finset.mem_insert_of_mem
-      (Finset.mem_insert_of_mem (p.mem_visitedByTapeHead.mpr ⟨c, hc, rfl⟩))
-    rw [hcD]
-    refine Fin.addCases (fun i => ?_) (fun i => ?_) j <;> simpa [-Fin.natAdd_eq_addNat] using hc' i⟩
-  have h₂ := mark_runsWithin (ip := p.last.inputPos) (W := p.last.workTapes)
-    (out := p.last.output) (S := S') (fun h => some (h.getD mark))
-    (H' := fun i => helperTape origin mark (L i) (R i)) (fun i => by
-      rw [hL, hR]
-      exact helperTape_update (hinv i).1 (hinv i).2.1 ⟨(hinv i).2.2.1, (hinv i).2.2.2.1⟩)
-    (fun i => hmem i (x i) (by have := hb i; omega) (by have := hb i; omega))
-  have h₃ := right_runsWithin (origin := origin) (mark := mark) (ip := p.last.inputPos)
-    (W := p.last.workTapes) (out := p.last.output) (fun i => (hb i).1) (fun i => (hb i).2.1)
-    (fun i => (hb i).2.2) hS
-  have h₄ := erase_runsWithin hom (ip := p.last.inputPos) (W := p.last.workTapes)
-    (out := p.last.output) (fun i => (hb i).1) (fun i => (hb i).2.1)
-    (fun i z hz => by have := (hinv i).2.2.2.2 z hz; have := hL i; have := hR i; omega) hS
-  have h₅ := home_runsWithin (origin := origin) (mark := mark) (ip := p.last.inputPos)
-    (out := p.last.output) (fun i => (hb i).1) (fun i => (hb i).2.1) hS
-  have h₆ := rewind_runsWithin (ip := p.last.inputPos) (W := fun _ _ => none)
-    (out := p.last.output) (fun _ _ => none) (S := S')
-    (fun i => hmem i 0 (by have := hb i; omega) (by have := hb i; omega))
+    rw [Int.card_Icc] at this
+    have := hL i; have := hR i; have := hinv i
+    omega
+  have hx i : L i ≤ x i ∧ x i ≤ R i ∧ R i - L i + 1 ≤ s := by
+    have := hL i; have := hR i; have := hw i; omega
+  have hmark i : Function.update (helperTape origin mark (l i) (r i)) (x i)
+      (some ((helperTape origin mark (l i) (r i) (x i)).getD mark)) =
+      helperTape origin mark (L i) (R i) := by
+    rw [hL i, hR i]
+    exact helperTape_update (hinv i).1 (hinv i).2.1 ⟨(hinv i).2.2.1, (hinv i).2.2.2.1⟩
+  -- every head of every phase stays in `S' i`, two cells more than `tm` visits
+  set S' : Fin k → Finset ℤ := fun i => insert (L i - 1) (insert (R i + 1) (p.visitedByTapeHead i))
+  have hS i : Finset.Icc (L i - 1) (R i + 1) ⊆ S' i := by have := hIcc i; grind
+  have hmem i z (hz : L i - 1 ≤ z ∧ z ≤ R i + 1) : z ∈ S' i := hS i (Finset.mem_Icc.mpr hz)
+  have hVS i : p.visitedByTapeHead i ⊆ S' i :=
+    (Finset.subset_insert _ _).trans (Finset.subset_insert _ _)
   obtain ⟨Q, hQh, hQl, hQt, hQS⟩ :=
-    (((((h₀.seq rfl h₁).seq rfl h₂).seq rfl h₃).seq rfl h₄).seq rfl h₅).seq rfl h₆
+    ((((((mark_runsWithin (input := input) (ip := 1) (W := fun _ _ => none) (out := [])
+      (fun _ => some origin) (fun _ => helperTape_zero)
+      fun i => hmem i 0 (by have := hw i; omega)).seq rfl
+    (h₁.mono fun j => Fin.addCases (fun i => by simpa using hVS i) (fun i => by simpa using hVS i)
+      j)).seq rfl
+    (mark_runsWithin (fun h => some (h.getD mark)) hmark
+      fun i => hmem i (x i) (by have := hx i; omega))).seq rfl
+    (right_runsWithin hx hS)).seq rfl
+    (erase_runsWithin hom hw (fun i z hz => by
+      have := (hinv i).2.2.2.2.2 z hz; have := hL i; have := hR i; omega) hS)).seq rfl
+    (home_runsWithin hw hS)).seq rfl
+    (rewind_runsWithin (ip := p.last.inputPos) (W := fun _ _ => none) (out := p.last.output)
+      (fun _ _ => none) fun i => hmem i 0 (by have := hw i; omega))
   -- the input head moved at most `t` cells
   have hip : (p.last.inputPos : ℕ) ≤ 1 + t := by
     have h := inputPos_runFrom_le tm p.head p.length
@@ -375,22 +289,15 @@ public theorem ComputesInTimeAndSpace.computesTidily_tidy [DecidableEq Symbol]
     simp [hp0] at h
     exact h.trans (by omega)
   refine computesTidily_iff.mpr ⟨Q, by rw [wordsCfg_eq_pairCfg]; exact hQh,
-    by rw [wordsCfg_eq_pairCfg, ← hout]; exact hQl, ?_, ?_⟩
-  · have hsup : ∀ m : Fin k → ℕ, (∀ i, m i ≤ s) → Finset.univ.sup m ≤ s := fun m hm =>
-      Finset.sup_le fun i _ => hm i
-    have := hsup _ fun i => (show (R i - x i + 1).toNat ≤ s by have := hsi i; have := hb i; omega)
-    have := hsup _ fun i => (show (R i - L i + 1).toNat ≤ s by have := hsi i; omega)
-    have := hsup _ fun i => (show (1 - L i).toNat ≤ s by have := hsi i; have := hb i; omega)
-    change Q.length ≤ _
-    omega
-  · have hcard : ∀ i, (S' i).card ≤ p.spaceUsedByTape i + 2 := fun i =>
-      (Finset.card_insert_le _ _).trans (Nat.succ_le_succ (Finset.card_insert_le _ _))
-    calc Q.space ≤ ∑ j, (Fin.append S' S' j).card := Q.space_le_sum_card hQS
-      _ = 2 * ∑ i, (S' i).card := by rw [Fin.sum_univ_add]; simp [-Fin.natAdd_eq_addNat, two_mul]
-      _ ≤ 2 * ∑ i, (p.spaceUsedByTape i + 2) := by gcongr with i; exact hcard i
-      _ = 2 * (p.space + 2 * k) := by simp [Finset.sum_add_distrib, MultiTapeNTM.RunPath.space,
-        mul_comm]
-      _ ≤ 6 * s := by have := p.le_space; omega
+    by rw [wordsCfg_eq_pairCfg, ← hout]; exact hQl, by change Q.length ≤ _; omega, ?_⟩
+  calc Q.space ≤ ∑ j, (Fin.append S' S' j).card := Q.space_le_sum_card hQS
+    _ = 2 * ∑ i, (S' i).card := by rw [Fin.sum_univ_add]; simp [two_mul]
+    _ ≤ 2 * ∑ i, (p.spaceUsedByTape i + 2) := by
+      gcongr with i
+      exact (Finset.card_insert_le _ _).trans (Nat.succ_le_succ (Finset.card_insert_le _ _))
+    _ = 2 * (p.space + 2 * k) := by
+      simp [Finset.sum_add_distrib, MultiTapeNTM.RunPath.space, mul_comm]
+    _ ≤ 6 * s := by have := p.le_space; omega
 
 /-- **Every computable function is computable tidily**, in time `2 * t + 3 * s + 7` and space
 `6 * s`. -/

@@ -74,6 +74,12 @@ def RunsWithin {k : ℕ} {State : Type*} (tm : MultiTapeTM k Symbol State)
   ∃ p : tm.RunPath input, p.head = c ∧ p.last = c' ∧ p.length ≤ t ∧
     ∀ c ∈ p, ∀ i, c.workTapePos i ∈ S i
 
+/-- A run within some cells is a run within more. -/
+theorem RunsWithin.mono {c c' : Cfg k Symbol State₀ input} {t : ℕ} {S S' : Fin k → Finset ℤ}
+    (h : tm₀.RunsWithin c c' t S) (hS : ∀ i, S i ⊆ S' i) : tm₀.RunsWithin c c' t S' :=
+  let ⟨p, hh, hl, ht, hp⟩ := h
+  ⟨p, hh, hl, ht, fun c hc i => hS i (hp c hc i)⟩
+
 /-- **Sequential composition of runs.** A run of `tm₀` to a halted configuration, followed by a run
 of `tm₁` from there, is a run of `seq`, the times adding. -/
 theorem RunsWithin.seq {c c' : Cfg k Symbol State₀ input} {c'' : Cfg k Symbol State₁ input}

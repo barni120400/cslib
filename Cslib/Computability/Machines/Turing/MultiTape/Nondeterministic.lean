@@ -72,20 +72,22 @@ lemma mem_or_mem_of_mem_smash {p q : RelSeries r} {h : p.last = q.head} {a : α}
   refine Fin.addCases (m := p.length) (n := q.length + 1) (fun j => .inl ⟨j.castSucc, ?_⟩)
     (fun j => .inr ⟨j, ?_⟩) j <;> simp [smash]
 
-/-- **A simulation lifts series.** If `R` relates `a` to `b` and `r` steps from `a` to `a'`, let `s`
-step from `b` to some `b'` related to `a'`. Then a series of `r` whose head is related to `b` lifts
-to a series of `s` of the same length from `b`, each of whose members is related to a member of the
-series of `r`. `RelSeries.map` is the case of a function. -/
-lemma exists_lift (R : α → β → Prop)
-    (hR : ∀ {a a' b}, (a, a') ∈ r → R a b → ∃ b', (b, b') ∈ s ∧ R a' b') (p : RelSeries r)
-    {b : β} (hb : R p.head b) :
+/-- **A simulation lifts series.** If `R` relates `a` to `b`, `P a` holds and `r` steps from `a`
+to `a'`, let `s` step from `b` to some `b'` related to `a'`. Then a series of `r` whose members
+satisfy `P` and whose head is related to `b` lifts to a series of `s` of the same length from `b`,
+each of whose members is related to a member of the series of `r`. `RelSeries.map` is the case of
+a function. -/
+lemma exists_lift (R : α → β → Prop) (P : α → Prop)
+    (hR : ∀ {a a' b}, (a, a') ∈ r → P a → R a b → ∃ b', (b, b') ∈ s ∧ R a' b') (p : RelSeries r)
+    (hP : ∀ a ∈ p, P a) {b : β} (hb : R p.head b) :
     ∃ q : RelSeries s, q.head = b ∧ q.length = p.length ∧ R p.last q.last ∧
       ∀ y ∈ q, ∃ x ∈ p, R x y := by
   induction p using RelSeries.inductionOn' with
   | singleton a => exact ⟨.singleton s b, rfl, rfl, hb, fun y ⟨_, hy⟩ => ⟨a, ⟨0, rfl⟩, hy ▸ hb⟩⟩
   | snoc p a h ih =>
-    obtain ⟨q, hq, hlen, hlast, hmem⟩ := ih (by simpa using hb)
-    obtain ⟨b', hb', hR'⟩ := hR h hlast
+    have hP' a (ha : a ∈ p) : P a := hP a (RelSeries.mem_snoc.mpr (.inl ha))
+    obtain ⟨q, hq, hlen, hlast, hmem⟩ := ih hP' (by simpa using hb)
+    obtain ⟨b', hb', hR'⟩ := hR h (hP' _ p.last_mem) hlast
     refine ⟨q.snoc b' hb', by simp [hq], by simp [hlen], by simpa using hR', fun y hy => ?_⟩
     rcases RelSeries.mem_snoc.mp hy with hy | rfl
     · obtain ⟨x, hx, hxy⟩ := hmem y hy
