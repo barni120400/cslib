@@ -358,6 +358,7 @@ lemma runFrom_eq_of_halt
 lemma runsInTime_of_halted {input : List Symbol} {t : ℕ}
     (h : (tm.runFrom (tm.initCfg input) t).Halted) : tm.RunsInTime input t := by
   intro p hp
+  change p.last.Halted
   rw [computationPath_last_eq_runFrom p, runFrom_eq_of_halt _ _ hp h]
   exact h
 
