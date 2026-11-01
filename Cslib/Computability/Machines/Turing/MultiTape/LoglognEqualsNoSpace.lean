@@ -68,7 +68,7 @@ private lemma eventually_visit_bound_lt {Symbol State : Type*} [Fintype Symbol] 
 The bound applies to the same machine on every input. -/
 theorem exists_const_space_of_isLittleO_log_log {k : ℕ} {Symbol State : Type*}
     [Finite Symbol] [Finite State] {tm : MultiTapeTM k Symbol State} {s : ℕ → ℕ}
-    (hhalt : ∀ input, ∃ p : tm.ComputationPath input, p.last.Halted)
+    (hhalt : ∀ input, ∃ p : tm.ComputationPath input, p.Halts)
     (hspace : ∀ input, tm.RunsInSpace input (s input.length))
     (hs : (fun n ↦ (s n : ℝ)) =o[atTop] (fun n ↦ Real.log (Real.log (n : ℝ)))) :
     ∃ C : ℕ, ∀ input, tm.RunsInSpace input C := by
@@ -106,7 +106,7 @@ theorem ComputableInSpace.exists_const_space {β : Type*} {f : List Bool → β}
     ∃ C : ℕ, ComputableInSpace f (.refl _) encOut (fun _ ↦ C) := by
   obtain ⟨k, State, hfinite, tm, htm⟩ := h
   let : Finite State := hfinite
-  have hhalt : ∀ input, ∃ p : tm.ComputationPath input, p.last.Halted := by
+  have hhalt : ∀ input, ∃ p : tm.ComputationPath input, p.Halts := by
     intro input
     obtain ⟨t, ht, _⟩ := (htm input).1
     exact ⟨.ofDeterministic tm input t, ht⟩

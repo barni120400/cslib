@@ -110,7 +110,7 @@ private def mayLoop : MultiTapeNTM 0 Bool Unit where
   Tr _ _ _ action := action = stop true ∨ action = ⟨0, Fin.elim0, none, some ()⟩
 
 -- One short halting branch does not bound a second branch that can keep running.
-example : (∃ p : mayLoop.ComputationPath [], p.time = 1 ∧ p.last.Halted) ∧
+example : (∃ p : mayLoop.ComputationPath [], p.time = 1 ∧ p.Halts) ∧
     ¬mayLoop.RunsInTime [] 1 := by
   constructor
   · let p : mayLoop.ComputationPath [] :=

@@ -166,9 +166,12 @@ lemma last_eq_of_halted (p : ntm.RunPath input) (i : Fin (p.length + 1))
 /-- The number of steps taken by a run path. -/
 def time (p : ntm.RunPath input) : ℕ := p.length
 
+/-- The path halts: its last configuration is halted. -/
+def Halts (p : ntm.RunPath input) : Prop := p.last.Halted
+
 /-- A path that ends halted runs from its head to its last configuration in running steps, up to
 its first halted configuration. -/
-lemma exists_running (p : ntm.RunPath input) (h : p.last.Halted) :
+lemma exists_running (p : ntm.RunPath input) (h : p.Halts) :
     ∃ q : RelSeries (ntm.runningStepRel input), q.head = p.head ∧ q.last = p.last ∧
       q.length ≤ p.length ∧ ∀ c ∈ q, c ∈ p := by
   classical
@@ -192,12 +195,15 @@ namespace ComputationPath
 /-- The number of steps taken by a computation path. -/
 def time (p : ntm.ComputationPath input) : ℕ := RunPath.time p.toRunPath
 
+/-- The computation halts: its last configuration is halted. -/
+def Halts (p : ntm.ComputationPath input) : Prop := RunPath.Halts p.toRunPath
+
 end ComputationPath
 
 /-- Every computation path on `input` of at least `t` steps ends in a halted configuration.
 A path ending in a stuck configuration must have fewer than `t` steps. -/
 def RunsInTime (ntm : MultiTapeNTM k Symbol State) (input : List Symbol) (t : ℕ) : Prop :=
-  ∀ p : ntm.ComputationPath input, t ≤ p.time → p.last.Halted
+  ∀ p : ntm.ComputationPath input, t ≤ p.time → p.Halts
 
 /-- A time bound can be increased. -/
 lemma RunsInTime.mono {input : List Symbol} {t t' : ℕ}

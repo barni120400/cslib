@@ -102,7 +102,7 @@ def visitSequence (p : ntm.RunPath input) (pos : ℕ) : List (Storage Symbol Sta
 /-- In a deterministic path that ends halted, distinct running visits to a position have distinct
 storages: they would be equal configurations of the machine with its output erased. -/
 lemma storage_injOn_visits {tm : MultiTapeTM k Symbol State} (p : tm.RunPath input)
-    (h : p.last.Halted) (pos : ℕ) : Set.InjOn (fun i ↦ (p i).storage) (p.visits pos) := by
+    (h : p.Halts) (pos : ℕ) : Set.InjOn (fun i ↦ (p i).storage) (p.visits pos) := by
   intro i hi j hj hij
   simp only [Finset.mem_coe, mem_visits] at hi hj
   refine injOn_running (tm := tm.eraseOutput) (p.map tm.eraseOutputHom) h hi.2 hj.2 ?_
@@ -383,7 +383,7 @@ open MultiTapeNTM MultiTapeNTM.RunPath
 /-- On a sufficiently long input, two cells on the same side of `pos` carry the same symbol and
 visit sequence, and deleting between them shortens the input. -/
 private lemma exists_inputCut [Fintype Symbol] [Fintype State] {s : ℕ}
-    {path : tm.ComputationPath input} (hs : path.space ≤ s) (hhalt : path.last.Halted)
+    {path : tm.ComputationPath input} (hs : path.space ≤ s) (hhalt : path.Halts)
     (hlen : 2 * Fintype.card Symbol *
       (storageBound Symbol State k s + 1) ^ storageBound Symbol State k s + 1 < input.length)
     (pos : ℕ) :
@@ -443,7 +443,7 @@ private lemma exists_inputCut [Fintype Symbol] [Fintype State] {s : ℕ}
 /-- **Input shortening.** A sufficiently long input to a machine running in space `s` has a shorter
 input on which a computation path reaches any storage of a halting computation path. -/
 theorem exists_shorter_input_storage [Fintype Symbol] [Fintype State] {s : ℕ}
-    (hs : tm.RunsInSpace input s) {path : tm.ComputationPath input} (hhalt : path.last.Halted)
+    (hs : tm.RunsInSpace input s) {path : tm.ComputationPath input} (hhalt : path.Halts)
     (hlen : 2 * Fintype.card Symbol *
       (storageBound Symbol State k s + 1) ^ storageBound Symbol State k s + 1 < input.length)
     {d : Cfg k Symbol State input} (hd : d ∈ path.toRunPath) :

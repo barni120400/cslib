@@ -48,7 +48,7 @@ variable {tm₀ : MultiTapeTM k Symbol State₀} {tm₁ : MultiTapeTM k Symbol S
 of `tm₁` started where `tm₀` halted combine into a run path of `seq`: the first path up to its first
 halted configuration, followed by the second. It takes at most as many steps as the two paths
 together, and visits only cells that they visit. -/
-theorem exists_runPath_seq {p₀ : tm₀.RunPath input} (h₀ : p₀.last.Halted)
+theorem exists_runPath_seq {p₀ : tm₀.RunPath input} (h₀ : p₀.Halts)
     {p₁ : tm₁.RunPath input} (h₁ : p₁.head = p₀.last.withState (some tm₁.q₀)) :
     ∃ p : (tm₀.seq tm₁).RunPath input, p.head = p₀.head.mapState (handOver tm₁.q₀) ∧
       p.last = p₁.last.mapState (Option.map .inr) ∧ p.length ≤ p₀.length + p₁.length ∧
@@ -85,7 +85,7 @@ theorem transformsTapes_seq
   obtain ⟨ws'', e₁, hQ₁, p₁, hh₁, hl₁, ht₁, hs₁⟩ :=
     h₁ input ws' (out ++ e₀) (hmid input ws ws' e₀ hP₀ hQ₀)
   obtain ⟨p, hh, hl, ht, hvisited⟩ := exists_runPath_seq (p₀ := p₀) (p₁ := p₁)
-    (by rw [hl₀]; rfl) (by simp [hh₁, hl₀])
+    (by rw [MultiTapeNTM.RunPath.Halts, hl₀]; rfl) (by simp [hh₁, hl₀])
   -- the composed run visits only cells that one of the two runs visits
   exact ⟨ws'', e₀ ++ e₁, ⟨ws', e₀, e₁, hQ₀, hQ₁, rfl⟩, p, by simp [hh, hh₀]; rfl,
     by simp [hl, hl₁], ht.trans (Nat.add_le_add ht₀ ht₁),

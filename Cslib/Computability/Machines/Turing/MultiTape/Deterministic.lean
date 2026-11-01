@@ -298,13 +298,13 @@ lemma RunPath.eq_take {p q : tm.RunPath input} (hhead : p.head = q.head) (h : p.
 
 /-- Every computation prefix ends at a configuration of any halted computation path. -/
 lemma ComputationPath.last_mem_of_halted (p : tm.ComputationPath input)
-    {q : tm.ComputationPath input} (hq : q.last.Halted) : p.last ∈ q.toRunPath := by
+    {q : tm.ComputationPath input} (hq : q.Halts) : p.last ∈ q.toRunPath := by
   rcases le_total p.length q.length with h | h
   · have hp := RunPath.eq_take (p.head_eq.trans q.head_eq.symm) h
     exact ⟨⟨p.length, Nat.lt_succ_of_le h⟩, (congrArg RelSeries.last hp).symm⟩
   · have hq' := congrArg RelSeries.last (RunPath.eq_take (q.head_eq.trans p.head_eq.symm) h)
     rw [RelSeries.last_take] at hq'
-    rw [RunPath.last_eq_of_halted p.toRunPath _ (hq' ▸ hq), ← hq']
+    rw [RunPath.last_eq_of_halted p.toRunPath _ (hq' ▸ show q.last.Halted from hq), ← hq']
     exact RelSeries.last_mem _
 
 /-- The computation paths of a deterministic machine are prefixes of one another, so a path visiting
@@ -378,6 +378,7 @@ lemma runFrom_eq_of_halt
 lemma runsInTime_of_halted {input : List Symbol} {t : ℕ}
     (h : (tm.runFrom (tm.initCfg input) t).Halted) : tm.RunsInTime input t := by
   intro p hp
+  change p.last.Halted
   rw [computationPath_last_eq_runFrom p, runFrom_eq_of_halt _ _ hp h]
   exact h
 
@@ -554,7 +555,7 @@ variable {tm : MultiTapeTM k Symbol State} {input : List Symbol}
 /-- A deterministic path that ends halted never repeats a running configuration: from a repeated
 configuration the machine would cycle forever. -/
 lemma injOn_running (p : tm.RunPath input)
-    (h : p.last.Halted) : Set.InjOn p {i | ¬(p i).Halted} := by
+    (h : p.Halts) : Set.InjOn p {i | ¬(p i).Halted} := by
   -- a repeat `p i = p j` with `i < j` is followed by the repeat `p (i + 1) = p (j + 1)`, so halting
   -- at the end comes back to `p j`
   have halted (j : Fin (p.length + 1)) : ∀ i < j, p i = p j → (p j).Halted := by
