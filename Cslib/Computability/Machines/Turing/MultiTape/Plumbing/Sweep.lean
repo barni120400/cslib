@@ -26,8 +26,8 @@ and moves by `e`, and the machine halts.
 
 ## Main results
 
-* `Turing.MultiTapeTM.sweep_runsWithin`: if pair `i` meets the first cell failing `go` after `m i`
-  cells, the machine runs to the walked tapes in `max m + 1` steps.
+* `Turing.MultiTapeTM.sweep_runsWithin`: if pair `i` meets the first cell failing `go` after
+  `m i ≤ n` cells, the machine runs to the walked tapes in at most `n + 1` steps.
 -/
 
 @[expose] public section
@@ -79,22 +79,13 @@ def walked (d : SignType) (f : Option Symbol → Option Symbol) (x : ℤ) (n : �
   simp [walked]
 
 private lemma walked_self (hd : d ≠ 0) : walked d f x n T (x + d * n) = T (x + d * n) := by
-  unfold walked
-  rw [ite_eq_right]
-  rcases d <;> simp_all [SignType.cast]
+  rcases d <;> simp_all [walked]
 
 private lemma walked_succ (hd : d ≠ 0) :
     walked d f x (n + 1) T =
       Function.update (walked d f x n T) (x + d * n) (f (T (x + d * n))) := by
   funext z
-  unfold walked
-  by_cases hz : z = x + d * n
-  · subst hz
-    rcases d <;> simp_all [SignType.cast]
-  · rw [Function.update_of_ne hz]
-    congr 1
-    apply propext
-    rcases d <;> simp_all [SignType.cast] <;> omega
+  rcases d <;> simp_all [walked, Function.update_apply] <;> split_ifs <;> grind
 
 variable {go : Option Symbol → Bool} {fW fH gH : Option Symbol → Option Symbol} {e : SignType}
 
