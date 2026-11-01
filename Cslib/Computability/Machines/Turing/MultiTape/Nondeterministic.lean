@@ -39,6 +39,7 @@ requires every path of at least `t` steps to end in a halted configuration.
 * `Step`: the one-step relation on configurations
 * `RunPath`: finite relation series of steps
 * `ComputationPath`: a run path starting at the initial configuration
+* `ComputationPath.Computes`: a computation path ends halted with a given output
 * `Adapter`, `Follows`: a machine follows another when it performs each of its transitions,
   reading and acting through an adapter
 * `Follows.step`, `Follows.runningStepHom`, `Follows.stepHom`: a configuration map that agrees with
@@ -191,6 +192,10 @@ namespace ComputationPath
 
 /-- The number of steps taken by a computation path. -/
 def time (p : ntm.ComputationPath input) : ℕ := RunPath.time p.toRunPath
+
+/-- A computation path computes `output`: it ends halted with `output` on the output tape. -/
+def Computes (p : ntm.ComputationPath input) (output : List Symbol) : Prop :=
+  p.last.Halted ∧ p.last.output = output
 
 end ComputationPath
 
