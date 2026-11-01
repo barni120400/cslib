@@ -154,17 +154,15 @@ lemma rewind_runsWithin (H : Fin k → ℤ → Option Symbol) {x : Fin k → ℤ
     ((rewindInput Symbol).extendTapes (noTapes (k + k))).RunsWithin
       (pairCfg (some (rewindInput Symbol).q₀) ip W H x out) (pairCfg none 1 W H x out)
       (ip.val - 1 + 2) (Fin.append S S) := by
-  have e : noTapesCfg (pairCfg (some (rewindInput Symbol).q₀) ip W H x out) =
-      ⟨some (rewindInput Symbol).q₀, ip, nofun, nofun, out⟩ :=
-    Cfg.ext rfl rfl (Subsingleton.elim _ _) (Subsingleton.elim _ _) rfl
-  refine ⟨.ofDeterministic _ (pairCfg (some (rewindInput Symbol).q₀) ip W H x out)
-    (ip.val - 1 + 2), rfl, (runFrom_noTapes _ _ (ip.val - 1 + 2)).trans ?_, le_rfl, ?_⟩
-  · rw [e, runFrom_rewindInput]
-    rfl
-  · rintro _ ⟨n, rfl⟩ j
-    change (runFrom _ n.val).workTapePos j ∈ _
-    rw [runFrom_noTapes]
-    exact Fin.addCases (fun i => by simpa using hS i) (fun i => by simpa using hS i) j
+  have h : (rewindInput Symbol).RunsWithin ⟨some (rewindInput Symbol).q₀, ip, nofun, nofun, out⟩
+      ⟨none, 1, nofun, nofun, out⟩ (ip.val - 1 + 2) (fun _ => ∅) :=
+    ⟨.ofDeterministic _ _ (ip.val - 1 + 2), rfl, runFrom_rewindInput ip nofun nofun out, le_rfl,
+      fun _ _ i => i.elim0⟩
+  have := h.map (S' := Fin.append S S) (embedHom _ (noTapes (k + k)) (Fin.append W H)
+      (Fin.append x x)) fun d _ l => by
+    rw [embedHom_apply, embed_noTapes]
+    exact Fin.addCases (by simpa using hS ·) (by simpa using hS ·) l
+  rwa [embedHom_apply, embedHom_apply, embed_noTapes, embed_noTapes] at this
 
 /-- A sweep in which no pair walks rewrites the helper cell under each head by `g`, in one step. -/
 lemma mark_runsWithin (g : Option Symbol → Option Symbol) {H H' : Fin k → ℤ → Option Symbol}
@@ -272,8 +270,7 @@ public theorem ComputesInTimeAndSpace.computesTidily_tidy [DecidableEq Symbol]
     ((((((mark_runsWithin (input := input) (ip := 1) (W := fun _ _ => none) (out := [])
       (fun _ => some origin) (fun _ => helperTape_zero)
       fun i => hmem i 0 (by have := hw i; omega)).seq rfl
-    (h₁.mono fun j => Fin.addCases (fun i => by simpa using hVS i) (fun i => by simpa using hVS i)
-      j)).seq rfl
+    (h₁.mono le_rfl (Fin.addCases (by simpa using hVS ·) (by simpa using hVS ·)))).seq rfl
     (mark_runsWithin (fun h => some (h.getD mark)) hmark
       fun i => hmem i (x i) (by have := hx i; omega))).seq rfl
     (right_runsWithin hx hS)).seq rfl
@@ -283,11 +280,8 @@ public theorem ComputesInTimeAndSpace.computesTidily_tidy [DecidableEq Symbol]
     (rewind_runsWithin (ip := p.last.inputPos) (W := fun _ _ => none) (out := p.last.output)
       (fun _ _ => none) fun i => hmem i 0 (by have := hw i; omega))
   -- the input head moved at most `t` cells
-  have hip : (p.last.inputPos : ℕ) ≤ 1 + t := by
-    have h := inputPos_runFrom_le tm p.head p.length
-    rw [← Fin.val_last p.length, ← runPath_apply_eq_runFrom] at h
-    simp [hp0] at h
-    exact h.trans (by omega)
+  have hip := p.inputPos_last_le
+  simp only [hp0, MultiTapeNTM.initCfg, Cfg.init, Fin.val_one] at hip
   refine computesTidily_iff.mpr ⟨Q, by rw [wordsCfg_eq_pairCfg]; exact hQh,
     by rw [wordsCfg_eq_pairCfg, ← hout]; exact hQl, by change Q.length ≤ _; omega, ?_⟩
   calc Q.space ≤ ∑ j, (Fin.append S' S' j).card := Q.space_le_sum_card hQS

@@ -45,7 +45,26 @@ lemma Step.workTapes_eq_of_ne {c c' : Cfg k Symbol State input} (h : ntm.Step c 
     rw [Action.apply_workTapes]
     cases ha : (a.workTapes i).1 <;> simp [ha, hz]
 
+/-- The input head moves at most one cell right in a single step. -/
+lemma Step.inputPos_le {c c' : Cfg k Symbol State input} (h : ntm.Step c c') :
+    (c'.inputPos : ℕ) ≤ c.inputPos + 1 := by
+  unfold Step at h
+  split at h
+  · simp [h]
+  · obtain ⟨a, _, rfl⟩ := h
+    exact val_moveInputPos_le _ _
+
 namespace RunPath
+
+/-- Along a run path the input head moves at most one cell right per step. -/
+lemma inputPos_last_le (p : ntm.RunPath input) :
+    (p.last.inputPos : ℕ) ≤ p.head.inputPos + p.length := by
+  induction p using RelSeries.inductionOn' with
+  | singleton => simp
+  | snoc p c h ih =>
+    have := Step.inputPos_le h
+    simp only [RelSeries.last_snoc, RelSeries.head_snoc, RelSeries.snoc_length]
+    omega
 
 /-- Every position between the first and the last position of a head along a path is visited,
 since the head moves by at most one cell per step. -/

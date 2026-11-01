@@ -74,11 +74,49 @@ def RunsWithin {k : ℕ} {State : Type*} (tm : MultiTapeTM k Symbol State)
   ∃ p : tm.RunPath input, p.head = c ∧ p.last = c' ∧ p.length ≤ t ∧
     ∀ c ∈ p, ∀ i, c.workTapePos i ∈ S i
 
-/-- A run within some cells is a run within more. -/
-theorem RunsWithin.mono {c c' : Cfg k Symbol State₀ input} {t : ℕ} {S S' : Fin k → Finset ℤ}
-    (h : tm₀.RunsWithin c c' t S) (hS : ∀ i, S i ⊆ S' i) : tm₀.RunsWithin c c' t S' :=
+namespace RunsWithin
+
+variable {c c' c'' : Cfg k Symbol State₀ input} {t t' : ℕ} {S S' : Fin k → Finset ℤ}
+
+/-- A configuration with its heads in `S` runs to itself in no steps. -/
+theorem refl (h : ∀ i, c.workTapePos i ∈ S i) : tm₀.RunsWithin c c 0 S :=
+  ⟨.singleton _ c, rfl, rfl, le_rfl, fun _ ⟨_, hd⟩ => hd ▸ h⟩
+
+/-- A step between configurations with their heads in `S` is a run of one step. -/
+theorem single (h : tm₀.Step c c') (hc : ∀ i, c.workTapePos i ∈ S i)
+    (hc' : ∀ i, c'.workTapePos i ∈ S i) : tm₀.RunsWithin c c' 1 S :=
+  ⟨(RelSeries.singleton _ c).snoc c' (show ((RelSeries.singleton _ c).last, c') ∈ _ from h),
+    by simp, by simp, by simp, fun _ hd => by
+    rcases RelSeries.mem_snoc.mp hd with ⟨_, rfl⟩ | rfl <;> assumption⟩
+
+/-- Runs compose, the times adding. -/
+theorem trans (h : tm₀.RunsWithin c c' t S) (h' : tm₀.RunsWithin c' c'' t' S) :
+    tm₀.RunsWithin c c'' (t + t') S :=
   let ⟨p, hh, hl, ht, hp⟩ := h
-  ⟨p, hh, hl, ht, fun c hc i => hS i (hp c hc i)⟩
+  let ⟨q, hh', hl', ht', hq⟩ := h'
+  ⟨p.smash q (hl.trans hh'.symm), by simp [hh], by simp [hl'], by simp; omega,
+    fun _ hd => (RelSeries.mem_or_mem_of_mem_smash hd).elim (hp _) (hq _)⟩
+
+/-- A run is a run in more steps and more cells. -/
+theorem mono (h : tm₀.RunsWithin c c' t S) (ht : t ≤ t') (hS : ∀ i, S i ⊆ S' i) :
+    tm₀.RunsWithin c c' t' S' :=
+  let ⟨p, hh, hl, hp, hc⟩ := h
+  ⟨p, hh, hl, hp.trans ht, fun c hc' i => hS i (hc c hc' i)⟩
+
+/-- A homomorphism of step relations maps runs to runs, if it takes heads in `S` to heads in
+`S'`. -/
+theorem map {k' : ℕ} {State' : Type*} {input' : List Symbol} {tm' : MultiTapeTM k' Symbol State'}
+    {S' : Fin k' → Finset ℤ} (f : (tm₀.stepRel input).Hom (tm'.stepRel input'))
+    (h : tm₀.RunsWithin c c' t S)
+    (hS : ∀ d : Cfg k Symbol State₀ input, (∀ i, d.workTapePos i ∈ S i) →
+      ∀ i, (f d).workTapePos i ∈ S' i) :
+    tm'.RunsWithin (f c) (f c') t S' :=
+  let ⟨p, hh, hl, ht, hp⟩ := h
+  ⟨p.map f, by simp [hh], by simp [hl], ht, fun _ hd =>
+    let ⟨d, hd, e⟩ := RelSeries.exists_of_mem_map hd
+    e ▸ hS d (hp d hd)⟩
+
+end RunsWithin
 
 /-- **Sequential composition of runs.** A run of `tm₀` to a halted configuration, followed by a run
 of `tm₁` from there, is a run of `seq`, the times adding. -/

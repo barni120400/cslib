@@ -88,41 +88,7 @@ private lemma walked_succ (hd : d ≠ 0) :
   rcases d <;> simp_all [walked, Function.update_apply] <;> split_ifs <;> grind
 
 variable {go : Option Symbol → Bool} {fW fH gH : Option Symbol → Option Symbol} {e : SignType}
-
-/-- The walk of the sweep: after `n` steps, at most the longest walk, pair `i` has walked
-`min n (m i)` cells. -/
-private lemma runFrom_sweep (hd : d ≠ 0) (ip : Fin (input.length + 2))
-    (W H : Fin k → ℤ → Option Symbol) (x : Fin k → ℤ) (out : List Symbol) (m : Fin k → ℕ)
-    (hgo : ∀ i, ∀ j < m i, go (H i (x i + d * j)) = true)
-    (hstop : ∀ i, go (H i (x i + d * m i)) = false) (n : ℕ) (hn : n ≤ Finset.univ.sup m) :
-    (sweep go fW fH d gH e).runFrom (pairCfg (some ()) ip W H x out) n =
-      pairCfg (some ()) ip (fun i => walked d fW (x i) (min n (m i)) (W i))
-        (fun i => walked d fH (x i) (min n (m i)) (H i)) (fun i => x i + d * min n (m i)) out := by
-  induction n with
-  | zero => simp [runFrom]
-  | succ n ih =>
-    obtain ⟨i₀, -, hi₀⟩ := Finset.lt_sup_iff.mp (show n < Finset.univ.sup m by omega)
-    rw [runFrom, Function.iterate_succ_apply', ← runFrom, ih (by omega), step_of_state rfl]
-    have hgo' : ∀ i, go (walked d fH (x i) (min n (m i)) (H i) (x i + d * (min n (m i) : ℕ))) =
-        decide (n < m i) := fun i => by
-      rw [walked_self hd]
-      by_cases h : n < m i
-      · rw [min_eq_left h.le]
-        simpa [h] using hgo i n h
-      · rw [min_eq_right (by omega)]
-        simpa [h] using hstop i
-    have hrun : ¬ ∀ i, decide (n < m i) = false := fun h => by simpa [hi₀] using h i₀
-    simp only [sweep, tr_ofTr, Cfg.workTapeSymbols, pairCfg_workTapes, pairCfg_workTapePos,
-      Fin.append_right, Fin.append_left, hgo', hrun, ite_false]
-    refine Cfg.ext rfl (by simp [Action.apply]) (funext fun j => ?_) (funext fun j => ?_)
-      (by simp [Action.apply]) <;> refine Fin.addCases (fun i => ?_) (fun i => ?_) j <;>
-      by_cases h : n < m i <;>
-      simp [Action.apply, pairCfg, h, walked_succ hd, walked_self hd,
-        add_assoc, mul_add, show n < m i → min (n + 1) (m i) = n + 1 by omega,
-        show n < m i → min n (m i) = n by omega, show ¬ n < m i → min (n + 1) (m i) = m i by omega,
-        show ¬ n < m i → min n (m i) = m i by omega]
-
-variable {ip : Fin (input.length + 2)} {W H W' H' : Fin k → ℤ → Option Symbol} {x y : Fin k → ℤ}
+  {ip : Fin (input.length + 2)} {W H W' H' : Fin k → ℤ → Option Symbol} {x y : Fin k → ℤ}
   {out : List Symbol}
 
 /-- **The run of a sweep.** If pair `i` reads helper symbols satisfying `go` on its first
@@ -142,29 +108,51 @@ theorem sweep_runsWithin (hd : d ≠ 0) (m : Fin k → ℕ) {n : ℕ} (hn : ∀ 
   obtain rfl : W' = _ := funext fun i => (hW i).symm
   obtain rfl : H' = _ := funext fun i => (hH i).symm
   obtain rfl : y = _ := funext fun i => (hy i).symm
-  have hlast : (sweep go fW fH d gH e).step ((sweep go fW fH d gH e).runFrom
-      (pairCfg (some ()) ip W H x out) (Finset.univ.sup m)) = pairCfg none ip
-        (fun i => walked d fW (x i) (m i) (W i))
-        (fun i => Function.update (walked d fH (x i) (m i) (H i)) (x i + d * m i)
-          (gH (H i (x i + d * m i)))) (fun i => x i + d * m i + e) out := by
-    rw [runFrom_sweep hd ip W H x out m hgo hstop _ le_rfl, step_of_state rfl]
-    simp only [fun i => min_eq_right (Finset.le_sup (f := m) (Finset.mem_univ i)), sweep, tr_ofTr,
-      Cfg.workTapeSymbols, pairCfg_workTapes, pairCfg_workTapePos, Fin.append_right,
+  -- the configuration after `j` steps, while some pair walks: pair `i` has walked `min j (m i)`
+  let c (j : ℕ) : Cfg (k + k) Symbol Unit input := pairCfg (some ()) ip
+    (fun i => walked d fW (x i) (min j (m i)) (W i))
+    (fun i => walked d fH (x i) (min j (m i)) (H i)) (fun i => x i + d * min j (m i)) out
+  have hgo' j i : go (walked d fH (x i) (min j (m i)) (H i) (x i + d * (min j (m i) : ℕ))) =
+      decide (j < m i) := by
+    rw [walked_self hd]
+    by_cases h : j < m i
+    · simpa [h, min_eq_left h.le] using hgo i j h
+    · simpa [h, min_eq_right (not_lt.mp h)] using hstop i
+  have hstep j (hj : j < Finset.univ.sup m) : (sweep go fW fH d gH e).Step (c j) (c (j + 1)) := by
+    obtain ⟨i₀, -, hi₀⟩ := Finset.lt_sup_iff.mp hj
+    have hrun : ¬ ∀ i, decide (j < m i) = false := fun h => by simpa [hi₀] using h i₀
+    rw [step_iff, step_of_state rfl]
+    simp only [c, sweep, tr_ofTr, Cfg.workTapeSymbols, pairCfg_workTapes, pairCfg_workTapePos,
+      Fin.append_right, Fin.append_left, hgo', hrun, ite_false]
+    refine Cfg.ext rfl (by simp [Action.apply]) (funext fun l => ?_) (funext fun l => ?_)
+      (by simp [Action.apply]) <;> refine Fin.addCases (fun i => ?_) (fun i => ?_) l <;>
+      by_cases h : j < m i <;>
+      simp [Action.apply, pairCfg, h, walked_succ hd, walked_self hd, add_assoc, mul_add,
+        show j < m i → min (j + 1) (m i) = j + 1 by omega,
+        show j < m i → min j (m i) = j by omega, show ¬j < m i → min (j + 1) (m i) = m i by omega,
+        show ¬j < m i → min j (m i) = m i by omega]
+  have hlast : (sweep go fW fH d gH e).Step (c (Finset.univ.sup m)) (pairCfg none ip
+      (fun i => walked d fW (x i) (m i) (W i))
+      (fun i => Function.update (walked d fH (x i) (m i) (H i)) (x i + d * m i)
+        (gH (H i (x i + d * m i)))) (fun i => x i + d * m i + e) out) := by
+    rw [step_iff, step_of_state rfl]
+    simp only [c, fun i => min_eq_right (Finset.le_sup (f := m) (Finset.mem_univ i)), sweep,
+      tr_ofTr, Cfg.workTapeSymbols, pairCfg_workTapes, pairCfg_workTapePos, Fin.append_right,
       walked_self hd, hstop, implies_true, ite_true]
-    refine Cfg.ext rfl (by simp [Action.apply]) (funext fun j => ?_) (funext fun j => ?_)
-      (by simp [Action.apply]) <;> refine Fin.addCases (fun i => ?_) (fun i => ?_) j <;>
+    refine Cfg.ext rfl (by simp [Action.apply]) (funext fun l => ?_) (funext fun l => ?_)
+      (by simp [Action.apply]) <;> refine Fin.addCases (fun i => ?_) (fun i => ?_) l <;>
       simp [Action.apply, pairCfg]
-  refine ⟨.ofDeterministic _ (pairCfg (some ()) ip W H x out) (Finset.univ.sup m + 1), rfl,
-    (Function.iterate_succ_apply' _ _ _).trans hlast,
-    Nat.succ_le_succ (Finset.sup_le fun i _ => hn i), ?_⟩
-  rintro _ ⟨⟨n, hn⟩, rfl⟩ j
-  change (runFrom _ n).workTapePos j ∈ _
-  change n < Finset.univ.sup m + 1 + 1 at hn
-  rcases Nat.lt_succ_iff_lt_or_eq.mp hn with hn | rfl
-  · rw [runFrom_sweep hd ip W H x out m hgo hstop n (by omega)]
-    exact Fin.addCases (fun i => by simpa using hS i _ (min_le_right n (m i)))
-      (fun i => by simpa using hS i _ (min_le_right n (m i))) j
-  · rw [runFrom, Function.iterate_succ_apply', ← runFrom, hlast]
-    exact Fin.addCases (fun i => by simpa using hS' i) (fun i => by simpa using hS' i) j
+  -- every head of every configuration stays in `S`
+  have hc j : ∀ l, (c j).workTapePos l ∈ Fin.append S S l := Fin.addCases
+    (fun i => by simpa [c] using hS i _ (min_le_right _ _))
+    (fun i => by simpa [c] using hS i _ (min_le_right _ _))
+  have hrun j (hj : j ≤ Finset.univ.sup m) :
+      (sweep go fW fH d gH e).RunsWithin (c 0) (c j) j (Fin.append S S) := by
+    induction j with
+    | zero => exact .refl (hc 0)
+    | succ j ih => exact (ih (by omega)).trans (.single (hstep j hj) (hc j) (hc (j + 1)))
+  simpa [c] using ((hrun _ le_rfl).trans (.single hlast (hc _)
+    (Fin.addCases (by simpa using hS' ·) (by simpa using hS' ·)))).mono
+    (Nat.succ_le_succ (Finset.sup_le fun i _ => hn i)) fun _ => subset_rfl
 
 end Turing.MultiTapeTM
