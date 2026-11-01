@@ -41,8 +41,9 @@ requires every path of at least `t` steps to end in a halted configuration.
 * `ComputationPath`: a run path starting at the initial configuration
 * `Adapter`, `Follows`: a machine follows another when it performs each of its transitions,
   reading and acting through an adapter
-* `Follows.step`, `Follows.runningStepHom`, `Follows.stepHom`: a configuration map that agrees with
-  the adapter maps steps to steps, so it is a homomorphism of step relations and maps run paths
+* `Follows.step`: a follower mirrors each step from configurations that agree with the adapter
+* `Follows.runningStepHom`, `Follows.stepHom`: a configuration map that agrees with the adapter is
+  a homomorphism of step relations, so it maps run paths
 * `RunsInTime`: every computation path of at least the given length ends in a halted
   configuration
 
@@ -70,6 +71,26 @@ lemma mem_or_mem_of_mem_smash {p q : RelSeries r} {h : p.last = q.head} {a : α}
   obtain ⟨j, rfl⟩ := ha
   refine Fin.addCases (m := p.length) (n := q.length + 1) (fun j => .inl ⟨j.castSucc, ?_⟩)
     (fun j => .inr ⟨j, ?_⟩) j <;> simp [smash]
+
+/-- **A simulation lifts series.** If `R` relates `a` to `b` and `r` steps from `a` to `a'`, let `s`
+step from `b` to some `b'` related to `a'`. Then a series of `r` whose head is related to `b` lifts
+to a series of `s` of the same length from `b`, each of whose members is related to a member of the
+series of `r`. `RelSeries.map` is the case of a function. -/
+lemma exists_lift (R : α → β → Prop)
+    (hR : ∀ {a a' b}, (a, a') ∈ r → R a b → ∃ b', (b, b') ∈ s ∧ R a' b') (p : RelSeries r)
+    {b : β} (hb : R p.head b) :
+    ∃ q : RelSeries s, q.head = b ∧ q.length = p.length ∧ R p.last q.last ∧
+      ∀ y ∈ q, ∃ x ∈ p, R x y := by
+  induction p using RelSeries.inductionOn' with
+  | singleton a => exact ⟨.singleton s b, rfl, rfl, hb, fun y ⟨_, hy⟩ => ⟨a, ⟨0, rfl⟩, hy ▸ hb⟩⟩
+  | snoc p a h ih =>
+    obtain ⟨q, hq, hlen, hlast, hmem⟩ := ih (by simpa using hb)
+    obtain ⟨b', hb', hR'⟩ := hR h hlast
+    refine ⟨q.snoc b' hb', by simp [hq], by simp [hlen], by simpa using hR', fun y hy => ?_⟩
+    rcases RelSeries.mem_snoc.mp hy with hy | rfl
+    · obtain ⟨x, hx, hxy⟩ := hmem y hy
+      exact ⟨x, RelSeries.mem_snoc.mpr (.inl hx), hxy⟩
+    · exact ⟨a, RelSeries.mem_snoc.mpr (.inr rfl), hR'⟩
 
 end RelSeries
 
@@ -233,19 +254,19 @@ namespace Follows
 variable {k' : ℕ} {State' : Type*} {input' : List Symbol} {ntm' : MultiTapeNTM k' Symbol State'}
   {state : State → State'} {adapter : Adapter k k' Symbol State State'}
 
-/-- **A follower mirrors a step.** If `ntm'` follows `ntm`, and the map `f` relabels the state of
-`c` through `state`, reads through `adapter` what `c` reads, and carries the action of a step from
-`c` to its adaptation, then `f` maps the step to a step of `ntm'`. -/
-lemma step (h : ntm'.Follows ntm state adapter)
-    (f : Cfg k Symbol State input → Cfg k' Symbol State' input') {c c' : Cfg k Symbol State input}
-    (hstep : ntm.Step c c') (hstate : c.state.map state = (f c).state)
-    (hread : adapter.read (f c).headSymbols = c.headSymbols)
+/-- **A follower mirrors a step.** If `ntm'` follows `ntm`, and `d` is in the state of `c` relabeled
+through `state`, reads through `adapter` what `c` reads, and the adapted action of a step from `c`
+to `c'` takes `d` to `d'`, then `ntm'` steps from `d` to `d'`. A halted `c` steps to itself, so for
+it `d'` must be `d`. -/
+lemma step (h : ntm'.Follows ntm state adapter) {c c' : Cfg k Symbol State input}
+    {d d' : Cfg k' Symbol State' input'} (hstep : ntm.Step c c')
+    (hstate : c.state.map state = d.state) (hhalt : c.Halted → d' = d)
+    (hread : adapter.read d.headSymbols = c.headSymbols)
     (haction : ∀ action, action.apply c = c' →
-      (adapter.action (f c).headSymbols action).apply (f c) = f c') :
-    ntm'.Step (f c) (f c') := by
+      (adapter.action d.headSymbols action).apply d = d') :
+    ntm'.Step d d' := by
   rcases hq : c.state with _ | q
-  · rw [(step_of_halt hq).mp hstep]
-    exact (step_of_halt (show (f c).state = none by rw [← hstate, hq]; rfl)).mpr rfl
+  · exact (step_of_halt (show d.state = none by rw [← hstate, hq]; rfl)).mpr (hhalt hq)
   · simp only [Step, hq, Option.map_some] at hstep hstate
     obtain ⟨action, hTr, rfl⟩ := hstep
     rw [Step, ← hstate]
@@ -263,7 +284,8 @@ def runningStepHom (h : ntm'.Follows ntm state adapter)
       (adapter.action (f c).headSymbols action).apply (f c) = f (action.apply c)) :
     (ntm.runningStepRel input).Hom (ntm'.stepRel input') :=
   ⟨f, fun {c _} ⟨hrunning, hstep⟩ ↦ (Option.ne_none_iff_exists'.mp hrunning).elim fun q hq ↦
-    h.step f hstep (by rw [hq, hstate c q hq]; rfl) (hread c) fun action h ↦ h ▸ haction c action⟩
+    h.step hstep (by rw [hq, hstate c q hq]; rfl) (absurd · hrunning) (hread c) fun action h ↦
+      h ▸ haction c action⟩
 
 /-- **A follower mirrors the steps.** As `runningStepHom`, for an `f` that relabels every state
 through `state`, so that it also keeps halted configurations halted. -/
@@ -274,7 +296,8 @@ def stepHom (h : ntm'.Follows ntm state adapter)
     (haction : ∀ c action,
       (adapter.action (f c).headSymbols action).apply (f c) = f (action.apply c)) :
     (ntm.stepRel input).Hom (ntm'.stepRel input') :=
-  ⟨f, fun hstep ↦ h.step f hstep (hstate _) (hread _) fun action h ↦ h ▸ haction _ action⟩
+  ⟨f, fun hstep ↦ h.step hstep (hstate _) (fun hc ↦ congrArg f ((step_of_halt hc).mp hstep))
+    (hread _) fun action h ↦ h ▸ haction _ action⟩
 
 end Follows
 
