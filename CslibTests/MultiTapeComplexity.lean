@@ -22,7 +22,7 @@ private lemma constant_computable (symbol : Bool) :
   refine ⟨0, Unit, inferInstance, finish 0 symbol, fun b ↦ ?_⟩
   have h : ((finish 0 symbol).runFrom ((finish 0 symbol).initCfg (bit b)) 1).Halted ∧
       ((finish 0 symbol).runFrom ((finish 0 symbol).initCfg (bit b)) 1).output = bit symbol := by
-    rw [runFrom, Function.iterate_one, step_of_state rfl]
+    rw [runFrom_succ', runFrom_zero, step_of_state rfl]
     simp [finish, Turing.Cfg.Halted]; rfl
   exact ⟨⟨1, h⟩, (runsInTime_of_halted h.1).mono (by cases b <;> decide), by simp⟩
 

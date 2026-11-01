@@ -83,11 +83,11 @@ lemma runFrom_walk (p : Fin (input.length + 2)) (hp : p.val ≤ input.length) :
   induction hj : p.val generalizing p with
   | zero =>
     obtain rfl : p = 0 := Fin.ext hj
-    rw [runFrom, Function.iterate_one, step_eq rfl, inputSymbol_eq_none_of_boundary (.inl rfl)]
+    rw [runFrom_succ', runFrom_zero, step_eq rfl, inputSymbol_eq_none_of_boundary (.inl rfl)]
     simp only [rewindInput, tr_ofTr]
     rfl
   | succ j ih =>
-    rw [runFrom, Function.iterate_succ_apply, ← runFrom, step_eq rfl,
+    rw [runFrom_succ, step_eq rfl,
       inputSymbolInner j (by grind) (by omega)]
     simp only [rewindInput, tr_ofTr]
     exact ih (moveInputPos p .neg) (by grind [SignType.cast]) (by grind [SignType.cast])
@@ -101,7 +101,7 @@ public theorem runFrom_rewindInput (p : Fin (input.length + 2))
     (rewindInput Symbol).runFrom ⟨some (rewindInput Symbol).q₀, p, tapes, heads, out⟩
       (p.val - 1 + 2) = ⟨none, 1, tapes, heads, out⟩ := by
   have h : (moveInputPos p .neg).val = p.val - 1 := by grind [SignType.cast]
-  rw [runFrom, Function.iterate_succ_apply, Rewind.step_eq rfl, ← runFrom, ← h]
+  rw [runFrom_succ, Rewind.step_eq rfl, ← h]
   simp only [rewindInput, tr_ofTr]
   exact Rewind.runFrom_walk (moveInputPos p .neg) (by omega)
 
