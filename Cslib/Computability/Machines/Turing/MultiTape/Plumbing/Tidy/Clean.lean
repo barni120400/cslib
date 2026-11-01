@@ -119,10 +119,18 @@ lemma runsWithin_track {tm : MultiTapeTM k Symbol State} (p : tm.RunPath input)
         Tracks origin mark p.visitedByTapeHead c' C' := by
     obtain ⟨l, r, rfl, hinv⟩ := hC
     obtain ⟨hrun, hs⟩ := hstep
-    refine ⟨_, follows_adapt.step hs Option.map_id_apply (absurd · hrun) ?_ fun a ha => ?_,
-      fun i => min (l i) (c.workTapePos i), fun i => max (r i) (c.workTapePos i), rfl, fun i => ?_⟩
-    · exact HeadSymbols.ext rfl (funext fun i => by simp [Cfg.workTapeSymbols, pairCfg])
-    · subst ha
+    obtain ⟨q, hq⟩ := Option.ne_none_iff_exists'.mp hrun
+    have hs' := hs
+    simp only [MultiTapeNTM.Step, hq] at hs'
+    obtain ⟨a, ha, rfl⟩ := hs'
+    refine ⟨_, ?_, fun i => min (l i) (c.workTapePos i), fun i => max (r i) (c.workTapePos i), rfl,
+      fun i => ?_⟩
+    · -- `track tm mark` performs the adapted action of `a`, which marks the cell it leaves
+      simp only [Set.mem_ofPred_eq, MultiTapeNTM.Step, pairCfg_state, hq, track]
+      refine ⟨_, follows_adapt q (Cfg.headSymbols _) a ?_, ?_⟩
+      · simp only [Cfg.headSymbols, pairCfg, Function.comp_def, Cfg.workTapeSymbols,
+          Fin.append_left]
+        exact ha
       refine Cfg.ext rfl rfl (funext fun j => ?_) (funext fun j => ?_) rfl <;>
         refine Fin.addCases (fun i => ?_) (fun i => ?_) j <;>
         simp [Action.apply, pairCfg, Cfg.workTapeSymbols,
