@@ -74,6 +74,7 @@ private lemma chooseBit_time (input : List Bool) : chooseBit.RunsInTime input 1 
   rw [p.head_eq] at hstep
   obtain ⟨action, ⟨b, rfl⟩, hc⟩ := hstep
   have hh : (p.toRunPath i.succ).Halted := by rw [hc]; rfl
+  change p.last.Halted
   rw [RunPath.last_eq_of_halted p.toRunPath i.succ hh]
   exact hh
 
