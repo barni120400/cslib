@@ -448,7 +448,7 @@ lemma not_halts_of_repeat_nonhalt
   -- The configuration will repeat every `t + 1` steps.
   have hloop : ∀ n, tm.runFrom cfg (n * (t + 1)) = cfg := by
     intro n
-    unfold runFrom
+    change tm.step^[n * (t + 1)] cfg = cfg
     rw [Nat.mul_comm, Function.iterate_mul]
     exact Function.iterate_fixed heq n
   by_contra hnh
