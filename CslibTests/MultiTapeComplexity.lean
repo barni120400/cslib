@@ -74,8 +74,7 @@ private lemma chooseBit_time (input : List Bool) : chooseBit.RunsInTime input 1 
   rw [p.head_eq] at hstep
   obtain ⟨action, ⟨b, rfl⟩, hc⟩ := hstep
   have hh : (p.toRunPath i.succ).Halted := by rw [hc]; rfl
-  rw [RunPath.last_eq_of_halted p.toRunPath i.succ hh]
-  exact hh
+  exact (congrArg Cfg.state (RunPath.last_eq_of_halted p.toRunPath i.succ hh)).trans hh
 
 -- Halting padding does not violate the time bound.
 example : chooseBit.RunsInTime [] 100 := (chooseBit_time []).mono (by decide)
@@ -110,7 +109,7 @@ private def mayLoop : MultiTapeNTM 0 Bool Unit where
   Tr _ _ _ action := action = stop true ∨ action = ⟨0, Fin.elim0, none, some ()⟩
 
 -- One short halting branch does not bound a second branch that can keep running.
-example : (∃ p : mayLoop.ComputationPath [], p.time = 1 ∧ p.last.Halted) ∧
+example : (∃ p : mayLoop.ComputationPath [], p.time = 1 ∧ p.Halts) ∧
     ¬mayLoop.RunsInTime [] 1 := by
   constructor
   · let p : mayLoop.ComputationPath [] :=
