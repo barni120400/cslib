@@ -389,6 +389,20 @@ def ComputesInTimeAndSpace (tm : MultiTapeTM k Symbol State)
     (input output : List Symbol) (t s : ℕ) : Prop :=
   tm.Computes input output ∧ tm.RunsInTime input t ∧ tm.RunsInSpace input s
 
+/-- A computation within the bounds is a halting computation path within them that ends with the
+output. -/
+lemma ComputesInTimeAndSpace.exists_computationPath {input output : List Symbol} {t s : ℕ}
+    (h : tm.ComputesInTimeAndSpace input output t s) :
+    ∃ p : tm.ComputationPath input, p.last.Halted ∧ p.last.output = output ∧ p.time ≤ t ∧
+      p.space ≤ s := by
+  obtain ⟨⟨u, hu, huout⟩, ht, hs⟩ := h
+  have hhalt : (tm.runFrom (tm.initCfg input) t).Halted := ht (.ofDeterministic tm input t) le_rfl
+  refine ⟨.ofDeterministic tm input t, hhalt, ?_, le_rfl, hs _⟩
+  change (tm.runFrom (tm.initCfg input) t).output = output
+  rcases le_total u t with hut | htu
+  · rwa [runFrom_eq_of_halt _ _ hut hu]
+  · rwa [runFrom_eq_of_halt _ _ htu hhalt] at huout
+
 /-- The machine computes `f` relative to given encodings within the given time and space bounds. -/
 def ComputesFunInTimeAndSpace {α β : Type*} (tm : MultiTapeTM k Symbol State)
     (encIn : α ↪ List Symbol) (encOut : β ↪ List Symbol) (f : α → β) (t s : α → ℕ) : Prop :=
