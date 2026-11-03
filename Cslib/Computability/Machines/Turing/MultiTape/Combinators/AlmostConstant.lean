@@ -180,10 +180,9 @@ lemma runFrom_read (a : α) {j : ℕ} (hj : j ≤ (encIn a).length)
         workTapes := fun _ _ => none,
         workTapePos := fun _ => 0,
         output := [] } := by
-  simp only [runFrom]
   induction j with
   | zero =>
-    simp only [Function.iterate_zero_apply, MultiTapeNTM.initCfg, List.take_zero]
+    simp only [runFrom_zero, MultiTapeNTM.initCfg, List.take_zero]
     ext <;> simp [almostConstTM]
   | succ j ih =>
     have hprefix : (encIn a).take j <+: (encIn a).take (j + 1) := by
@@ -197,7 +196,7 @@ lemma runFrom_read (a : α) {j : ℕ} (hj : j ≤ (encIn a).length)
     have hstart : 1 + j ≠ 0 := by omega
     have hend : 1 + j ≠ (encIn a).length + 1 := by omega
     have hprev : 1 + j - 1 = j := by omega
-    rw [Function.iterate_succ_apply', ih (by omega) hmem']
+    rw [runFrom_succ', ih (by omega) hmem']
     rw [step_of_state (by rfl)]
     simp only [Action.apply, almostConstTM, tr_ofTr, Cfg.inputSymbol, Fin.ext_iff,
       Fin.val_zero, hstart, hend, hprev, reduceDIte, hcat]
@@ -215,14 +214,13 @@ lemma runFrom_write {input : List Bool} (pos : Fin (input.length + 2)) (o : List
         workTapes := fun _ _ => none,
         workTapePos := fun _ => 0,
         output := o ++ w.take i } := by
-  simp only [runFrom]
   induction i with
   | zero => simp
   | succ i ih =>
     have hilt : i < w.length := by omega
     have htake := List.take_concat_get' w i hilt
     have hnotdone : ¬ (w.length ≤ i) := by omega
-    rw [Function.iterate_succ_apply', ih (by omega)]
+    rw [runFrom_succ', ih (by omega)]
     rw [step_of_state (by rfl)]
     simp only [Action.apply, almostConstTM, tr_ofTr, List.head?_drop,
       List.getElem?_eq_getElem hilt, List.drop_eq_nil_iff, hnotdone, reduceIte, List.tail_drop,
@@ -241,7 +239,7 @@ lemma runFrom_write_halted {input : List Bool} (pos : Fin (input.length + 2)) (o
         workTapes := fun _ _ => none,
         workTapePos := fun _ => 0,
         output := o ++ w } := by
-  rw [runFrom, Function.iterate_succ_apply', ← runFrom, runFrom_write pos o hw le_rfl]
+  rw [runFrom_succ', runFrom_write pos o hw le_rfl]
   rw [step_of_state (by rfl)]
   simp only [Action.apply, almostConstTM, tr_ofTr, List.drop_length, reduceIte,
     List.head?_nil, moveInputPos_zero, Option.toList_none, List.append_nil, List.take_length]
@@ -293,7 +291,7 @@ lemma reaches_write (h : ∀ a ∉ S, encOut (f a) = out) (a : α) :
   · by_cases ha : a ∈ S
     · grind [Finset.le_sup (f := fun a => (encIn a).length + (encOut (f a)).length) ha]
     · grind [h a ha]
-  rw [runFrom, Function.iterate_succ_apply', ← runFrom, runFrom_read a hjle hmem]
+  rw [runFrom_succ', runFrom_read a hjle hmem]
   rcases eq_or_lt_of_le hjle with heq | hlt
   · -- the whole input has been read, so the machine decodes it
     have hend : 1 + j = (encIn a).length + 1 := by omega
@@ -330,7 +328,7 @@ lemma computesFunInTimeAndSpace_almostConstTM (h : ∀ a ∉ S, encOut (f a) = o
   obtain ⟨j, hjle, hj, hrun⟩ := reaches_write (encIn := encIn) h a
   have hfinal := congrArg
     ((almostConstTM encIn encOut f S out).runFrom · ((encOut (f a)).length + 1)) hrun
-  rw [runFrom_write_halted, runFrom, runFrom, ← Function.iterate_add_apply] at hfinal
+  rw [runFrom_write_halted, ← runFrom_add] at hfinal
   have hhalt := congrArg Cfg.state hfinal
   exact ⟨⟨_, hhalt, congrArg Cfg.output hfinal⟩,
     (runsInTime_of_halted hhalt).mono (by dsimp [almostConstTime]; omega), by simp⟩
