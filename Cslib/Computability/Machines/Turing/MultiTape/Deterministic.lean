@@ -44,6 +44,8 @@ We define a number of structures and concepts related to multi-tape Turing machi
 * `ComputableInTimeAndSpaceOfLength`: the specialization to bounds on encoded input length.
 * `DecidableInTimeAndSpace`: a proof that a TM decides a language within a certain time
     and space bound.
+* `ComputesInSpace`, `ComputesFunInSpace`, `ComputableInSpace`, `DecidableInSpace`: the same
+    notions within a space bound only
 
 -/
 
@@ -288,6 +290,17 @@ lemma RunPath.eq_take {p q : tm.RunPath input} (hhead : p.head = q.head) (h : p.
   rw [RelSeries.head_take, hhead]
   rfl
 
+/-- Every computation prefix ends at a configuration of any halted computation path. -/
+lemma ComputationPath.last_mem_of_halted (p : tm.ComputationPath input)
+    {q : tm.ComputationPath input} (hq : q.last.Halted) : p.last ∈ q.toRunPath := by
+  rcases le_total p.length q.length with h | h
+  · have hp := RunPath.eq_take (p.head_eq.trans q.head_eq.symm) h
+    exact ⟨⟨p.length, Nat.lt_succ_of_le h⟩, (congrArg RelSeries.last hp).symm⟩
+  · have hq' := congrArg RelSeries.last (RunPath.eq_take (q.head_eq.trans p.head_eq.symm) h)
+    rw [RelSeries.last_take] at hq'
+    rw [RunPath.last_eq_of_halted p.toRunPath _ (hq' ▸ hq), ← hq']
+    exact RelSeries.last_mem _
+
 /-- The computation paths of a deterministic machine are prefixes of one another, so a path visiting
 at most as many cells as another visits at most as many on each tape. -/
 lemma ComputationPath.spaceUsedByTape_le_of_space_le (p : tm.ComputationPath input)
@@ -396,10 +409,19 @@ def Computes (tm : MultiTapeTM k Symbol State) (input output : List Symbol) : Pr
   ∃ u, (tm.runFrom (tm.initCfg input) u).Halted ∧
     (tm.runFrom (tm.initCfg input) u).output = output
 
+/-- The machine computes `output` from `input` within the given space bound. -/
+def ComputesInSpace (tm : MultiTapeTM k Symbol State) (input output : List Symbol) (s : ℕ) : Prop :=
+  tm.Computes input output ∧ tm.RunsInSpace input s
+
 /-- The machine computes `output` from `input` within the shared time and space bounds. -/
 def ComputesInTimeAndSpace (tm : MultiTapeTM k Symbol State)
     (input output : List Symbol) (t s : ℕ) : Prop :=
   tm.Computes input output ∧ tm.RunsInTime input t ∧ tm.RunsInSpace input s
+
+/-- The machine computes `f` relative to given encodings within the given space bound. -/
+def ComputesFunInSpace {α β : Type*} (tm : MultiTapeTM k Symbol State)
+    (encIn : α ↪ List Symbol) (encOut : β ↪ List Symbol) (f : α → β) (s : α → ℕ) : Prop :=
+  ∀ a, tm.ComputesInSpace (encIn a) (encOut (f a)) (s a)
 
 /-- The machine computes `f` relative to given encodings within the given time and space bounds. -/
 def ComputesFunInTimeAndSpace {α β : Type*} (tm : MultiTapeTM k Symbol State)
@@ -413,6 +435,13 @@ theorem ComputesFunInTimeAndSpace.mono {α β : Type*}
     (ht : ∀ a, t a ≤ t' a) (hs : ∀ a, s a ≤ s' a) :
     tm.ComputesFunInTimeAndSpace encIn encOut f t' s' :=
   fun a ↦ ⟨(h a).1, (h a).2.1.mono (ht a), (h a).2.2.mono (hs a)⟩
+
+/-- Computability by a deterministic machine with a binary tape alphabet and finitely many states,
+within the supplied input-indexed space bound. -/
+def ComputableInSpace {α β : Type*}
+    (f : α → β) (encIn : α ↪ List Bool) (encOut : β ↪ List Bool) (s : α → ℕ) : Prop :=
+  ∃ (k : ℕ) (State : Type) (_ : Finite State) (tm : MultiTapeTM k Bool State),
+    tm.ComputesFunInSpace encIn encOut f s
 
 /-- Computability by a deterministic machine with a binary tape alphabet and finitely many states,
 within the supplied input-indexed bounds. -/
@@ -444,6 +473,11 @@ open scoped Classical in
 /-- The Boolean indicator function of a set. -/
 noncomputable def indicator {α : Type*} (L : Set α) : α → Bool :=
   fun x => if x ∈ L then true else false
+
+/-- A set is decidable within the given input-indexed space bound when its Boolean indicator is
+computable within it. -/
+def DecidableInSpace {α : Type*} (L : Set α) (enc : α ↪ List Bool) (s : α → ℕ) : Prop :=
+  ComputableInSpace (indicator L) enc ⟨fun b ↦ [b], by intro a b h; simpa using h⟩ s
 
 /-- A set is decidable within the given input-indexed bounds when its Boolean indicator is
 computable in those bounds. -/
