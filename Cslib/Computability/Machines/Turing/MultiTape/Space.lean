@@ -23,6 +23,9 @@ positions visited by each work-tape head along the path and sums over the tapes.
 `MultiTapeNTM.RunPath.space_map_le` bounds the space of a run path mapped by `RunPath.map` through
 the head positions of the original path.
 
+`MultiTapeNTM.ComputesInTimeAndSpace` and `MultiTapeNTM.ComputesFunInTimeAndSpace` combine
+`MultiTapeNTM.Computes` with the time and space bounds, for any machine and alphabet.
+
 ## Design
 
 The input tape is read-only with bounded head movement, and the output tape is write-only, so we
@@ -193,5 +196,25 @@ lemma runsInSpace_zero_tapes (ntm : MultiTapeNTM 0 Symbol State) (input : List S
     ntm.RunsInSpace input s := by
   intro p
   simp [ComputationPath.space, RunPath.space]
+
+/-! ### Computing within time and space -/
+
+/-- The machine computes `output` from `input` within the shared time and space bounds. -/
+def ComputesInTimeAndSpace (ntm : MultiTapeNTM k Symbol State)
+    (input output : List Symbol) (t s : ℕ) : Prop :=
+  ntm.Computes input output ∧ ntm.RunsInTime input t ∧ ntm.RunsInSpace input s
+
+/-- The machine computes `f` relative to given encodings within the given time and space bounds. -/
+def ComputesFunInTimeAndSpace {α β : Type*} (ntm : MultiTapeNTM k Symbol State)
+    (encIn : α ↪ List Symbol) (encOut : β ↪ List Symbol) (f : α → β) (t s : α → ℕ) : Prop :=
+  ∀ a, ntm.ComputesInTimeAndSpace (encIn a) (encOut (f a)) (t a) (s a)
+
+/-- Resource bounds can be weakened independently on every input. -/
+theorem ComputesFunInTimeAndSpace.mono {α β : Type*}
+    {encIn : α ↪ List Symbol} {encOut : β ↪ List Symbol} {f : α → β} {t s t' s' : α → ℕ}
+    (h : ntm.ComputesFunInTimeAndSpace encIn encOut f t s)
+    (ht : ∀ a, t a ≤ t' a) (hs : ∀ a, s a ≤ s' a) :
+    ntm.ComputesFunInTimeAndSpace encIn encOut f t' s' :=
+  fun a ↦ ⟨(h a).1, (h a).2.1.mono (ht a), (h a).2.2.mono (hs a)⟩
 
 end Turing.MultiTapeNTM

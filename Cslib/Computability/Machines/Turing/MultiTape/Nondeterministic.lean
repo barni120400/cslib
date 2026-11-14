@@ -13,7 +13,7 @@ public import Cslib.Computability.Machines.Turing.MultiTape.Configuration
 # Nondeterministic Multi-Tape Turing Machines
 
 Defines nondeterministic Turing machines with a read-only input tape, `k` work tapes and one
-write-only output tape, their computation paths, and time bounds.
+write-only output tape, their computation paths, time bounds, and what they compute.
 
 ## Design
 
@@ -33,6 +33,12 @@ successor configuration and is called stuck.
 Time bounds apply to every computation path, regardless of its outcome. `RunsInTime input t`
 requires every path of at least `t` steps to end in a halted configuration.
 
+A machine computes `output` from `input` when some computation path halts, and every halting path
+has output `output`. Paths that end stuck or never halt are not counted, so a branch can reject by
+getting stuck. A deterministic machine computes `output` exactly when it halts with `output`
+(`MultiTapeTM.computes_iff`). Acceptance, where some halting path emits a designated output, is
+membership in `outputs`.
+
 ## Important Declarations
 
 * `MultiTapeNTM`: the machine, an initial state and a transition relation
@@ -45,6 +51,8 @@ requires every path of at least `t` steps to end in a halted configuration.
   the adapter maps steps to steps, so it is a homomorphism of step relations and maps run paths
 * `RunsInTime`: every computation path of at least the given length ends in a halted
   configuration
+* `outputs`: the outputs of the computation paths that halt
+* `Computes`: the machine computes an output, the only output of its halting paths
 
 ## References
 
@@ -199,6 +207,15 @@ def RunsInTime (ntm : MultiTapeNTM k Symbol State) (input : List Symbol) (t : �
 lemma RunsInTime.mono {input : List Symbol} {t t' : ℕ}
     (h : ntm.RunsInTime input t) (ht : t ≤ t') : ntm.RunsInTime input t' :=
   fun p hp ↦ h p (ht.trans hp)
+
+/-- The outputs of the computation paths on `input` that end in a halted configuration. -/
+def outputs (ntm : MultiTapeNTM k Symbol State) (input : List Symbol) : Set (List Symbol) :=
+  {output | ∃ p : ntm.ComputationPath input, p.last.Halted ∧ p.last.output = output}
+
+/-- The machine computes `output` from `input`: some computation path halts with `output`, and every
+halting computation path has this output. Paths that end stuck or never halt are not counted. -/
+def Computes (ntm : MultiTapeNTM k Symbol State) (input output : List Symbol) : Prop :=
+  ntm.outputs input = {output}
 
 /-! ### Following a machine -/
 

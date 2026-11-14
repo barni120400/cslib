@@ -20,6 +20,10 @@ one action for every combination of state and symbols read. From the transition 
 a transition function `tr` and a function `step` which maps each configuration to its unique
 successor configuration (a halted configuration maps to itself).
 
+The time and space bounds and the computation predicates `Computes`, `ComputesInTimeAndSpace` and
+`ComputesFunInTimeAndSpace` are those of `MultiTapeNTM`, so `tm.Computes` is the nondeterministic
+notion applied to `tm`.
+
 The design choices for configurations and actions are documented in
 `Cslib.Computability.Machines.Turing.MultiTape.Configuration`.
 
@@ -36,9 +40,8 @@ We define a number of structures and concepts related to multi-tape Turing machi
 * `step`, `runFrom`: the successor configuration and iteration of this function
 * `MultiTapeNTM.RunPath.ofDeterministic`, `MultiTapeNTM.ComputationPath.ofDeterministic`:
     paths of a given length from an arbitrary or initial configuration
-* `Computes`: the machine halts with the given output on an input
-* `ComputesInTimeAndSpace`: the machine produces an output within the shared resource bounds
-* `ComputesFunInTimeAndSpace`: function computation with the shared time and space bounds
+* `computes_iff`: the shared `MultiTapeNTM.Computes` says that the machine halts with the given
+    output on an input
 * `ComputableInTimeAndSpace`: such a machine exists with binary alphabet and finitely many states.
 * `ComputableInTimeAndSpaceOfLength`: the specialization to bounds on encoded input length.
 * `DecidableInTimeAndSpace`: a proof that a TM decides a language within a certain time
@@ -379,28 +382,20 @@ lemma inputPos_runFrom_le (tm : MultiTapeTM k Symbol State)
         exact val_moveInputPos_le _ _
       omega
 
-/-- The machine eventually halts on `input` with the given `output`. -/
-def Computes (tm : MultiTapeTM k Symbol State) (input output : List Symbol) : Prop :=
-  ∃ u, (tm.runFrom (tm.initCfg input) u).Halted ∧
-    (tm.runFrom (tm.initCfg input) u).output = output
-
-/-- The machine computes `output` from `input` within the shared time and space bounds. -/
-def ComputesInTimeAndSpace (tm : MultiTapeTM k Symbol State)
-    (input output : List Symbol) (t s : ℕ) : Prop :=
-  tm.Computes input output ∧ tm.RunsInTime input t ∧ tm.RunsInSpace input s
-
-/-- The machine computes `f` relative to given encodings within the given time and space bounds. -/
-def ComputesFunInTimeAndSpace {α β : Type*} (tm : MultiTapeTM k Symbol State)
-    (encIn : α ↪ List Symbol) (encOut : β ↪ List Symbol) (f : α → β) (t s : α → ℕ) : Prop :=
-  ∀ a, tm.ComputesInTimeAndSpace (encIn a) (encOut (f a)) (t a) (s a)
-
-/-- Resource bounds can be weakened independently on every input. -/
-theorem ComputesFunInTimeAndSpace.mono {α β : Type*}
-    {encIn : α ↪ List Symbol} {encOut : β ↪ List Symbol} {f : α → β} {t s t' s' : α → ℕ}
-    (h : tm.ComputesFunInTimeAndSpace encIn encOut f t s)
-    (ht : ∀ a, t a ≤ t' a) (hs : ∀ a, s a ≤ s' a) :
-    tm.ComputesFunInTimeAndSpace encIn encOut f t' s' :=
-  fun a ↦ ⟨(h a).1, (h a).2.1.mono (ht a), (h a).2.2.mono (hs a)⟩
+/-- A deterministic machine computes `output` from `input` exactly when it eventually halts on
+`input` with `output`: all its halting computation paths end in the same configuration. -/
+theorem computes_iff {input output : List Symbol} :
+    tm.Computes input output ↔ ∃ u, (tm.runFrom (tm.initCfg input) u).Halted ∧
+      (tm.runFrom (tm.initCfg input) u).output = output := by
+  refine ⟨fun h ↦ ?_, fun ⟨u, hhalt, hout⟩ ↦ Set.eq_singleton_iff_unique_mem.mpr
+    ⟨⟨.ofDeterministic tm input u, hhalt, hout⟩, ?_⟩⟩
+  · obtain ⟨p, hp⟩ := (Set.eq_singleton_iff_unique_mem.mp h).1
+    rw [computationPath_last_eq_runFrom] at hp
+    exact ⟨p.time, hp⟩
+  · rintro _ ⟨p, hp, rfl⟩
+    rw [computationPath_last_eq_runFrom] at hp ⊢
+    rw [← runFrom_eq_of_halt tm _ (le_max_left p.time u) hp,
+      runFrom_eq_of_halt tm _ (le_max_right p.time u) hhalt, hout]
 
 /-- Computability by a deterministic machine with a binary tape alphabet and finitely many states,
 within the supplied input-indexed bounds. -/

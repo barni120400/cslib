@@ -18,8 +18,8 @@ a combinator can run a tidy machine as a subroutine and rely on nothing but the 
 
 A tidy computation is defined as a `Turing.MultiTapeTM.TransformsTapes` from blank work tapes to
 blank work tapes, so the lemmas about tape transformations apply to it directly. The three
-notions below add tidiness to `Turing.MultiTapeTM.ComputesInTimeAndSpace`,
-`Turing.MultiTapeTM.ComputesFunInTimeAndSpace` and `Turing.MultiTapeTM.ComputableInTimeAndSpace`.
+notions below add tidiness to `Turing.MultiTapeNTM.ComputesInTimeAndSpace`,
+`Turing.MultiTapeNTM.ComputesFunInTimeAndSpace` and `Turing.MultiTapeTM.ComputableInTimeAndSpace`.
 
 ## Main definitions
 

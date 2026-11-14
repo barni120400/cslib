@@ -77,9 +77,9 @@ lemma runFrom_full (input : List Symbol) :
 
 /-- The copy machine outputs its input unchanged, in `input.length + 1` steps and zero space. -/
 theorem computesInTimeAndSpace (input : List Symbol) :
-    ComputesInTimeAndSpace copy input input (input.length + 1) 0 := by
+    copy.ComputesInTimeAndSpace input input (input.length + 1) 0 := by
   have hhalt := congrArg Cfg.state (runFrom_full input)
-  exact ⟨⟨input.length + 1, hhalt, by rw [runFrom_full]; simp [cfg]⟩,
+  exact ⟨computes_iff.mpr ⟨input.length + 1, hhalt, by rw [runFrom_full]; simp [cfg]⟩,
     runsInTime_of_halted hhalt, by simp⟩
 
 end Copy

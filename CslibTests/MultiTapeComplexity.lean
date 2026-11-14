@@ -24,7 +24,7 @@ private lemma constant_computable (symbol : Bool) :
       ((finish 0 symbol).runFrom ((finish 0 symbol).initCfg (bit b)) 1).output = bit symbol := by
     rw [runFrom, Function.iterate_one, step_of_state rfl]
     simp [finish, Turing.Cfg.Halted]; rfl
-  exact ⟨⟨1, h⟩, (runsInTime_of_halted h.1).mono (by cases b <;> decide), by simp⟩
+  exact ⟨computes_iff.mpr ⟨1, h⟩, (runsInTime_of_halted h.1).mono (by cases b <;> decide), by simp⟩
 
 -- A theorem about nondeterministic steps applies directly to a deterministic machine.
 example {tm : Turing.MultiTapeTM k Symbol State} {input : List Symbol}
@@ -79,6 +79,20 @@ private lemma chooseBit_time (input : List Bool) : chooseBit.RunsInTime input 1 
 
 -- Halting padding does not violate the time bound.
 example : chooseBit.RunsInTime [] 100 := (chooseBit_time []).mono (by decide)
+
+private def stopPath (b : Bool) : chooseBit.ComputationPath [] where
+  toRunPath := (RelSeries.singleton _ (chooseBit.initCfg [])).snoc
+    ((stop b).apply (chooseBit.initCfg [])) ⟨stop b, ⟨b, rfl⟩, rfl⟩
+  head_eq := by simp
+
+-- A machine that halts with either bit accepts with `[true]`, but computes no output.
+example (output : List Bool) : [true] ∈ chooseBit.outputs [] ∧ ¬chooseBit.Computes [] output := by
+  have h (b : Bool) : [b] ∈ chooseBit.outputs [] := ⟨stopPath b, rfl, rfl⟩
+  refine ⟨h true, fun hc ↦ ?_⟩
+  have ht := h true
+  have hf := h false
+  rw [hc, Set.mem_singleton_iff] at ht hf
+  simp [← ht] at hf
 
 -- The transition into a halting configuration still costs one step.
 example : ¬chooseBit.RunsInTime [] 0 := by
