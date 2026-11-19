@@ -70,11 +70,11 @@ private lemma chooseBit_time (input : List Bool) : chooseBit.RunsInTime input 1 
   intro p hp
   let i : Fin p.length := ⟨0, hp⟩
   have hstep := p.step i
-  change chooseBit.Step p.head (p.toRunPath i.succ) at hstep
+  change chooseBit.Step p.head ((p : chooseBit.RunPath input) i.succ) at hstep
   rw [p.head_eq] at hstep
   obtain ⟨action, ⟨b, rfl⟩, hc⟩ := hstep
-  have hh : (p.toRunPath i.succ).Halted := by rw [hc]; rfl
-  rw [RunPath.last_eq_of_halted p.toRunPath i.succ hh]
+  have hh : ((p : chooseBit.RunPath input) i.succ).Halted := by rw [hc]; rfl
+  rw [RunPath.last_eq_of_halted _ i.succ hh]
   exact hh
 
 -- Halting padding does not violate the time bound.

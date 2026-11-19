@@ -262,10 +262,10 @@ lemma ComputationPath.storage_fitsIn {ntm : MultiTapeNTM k Symbol State}
     (p : ntm.ComputationPath input) : p.last.storage.FitsIn p.spaceUsedByTape := by
   refine ⟨fun j => ?_, fun j z hz => ?_⟩
   · simpa [Cfg.storage, p.head_eq, Cfg.init, ComputationPath.spaceUsedByTape] using
-      RunPath.natAbs_le_spaceUsedByTape_of_mem_visited p.toRunPath
+      RunPath.natAbs_le_spaceUsedByTape_of_mem_visited (p : ntm.RunPath input)
         ((RunPath.mem_visitedByTapeHead _).mpr ⟨_, RelSeries.last_mem _, rfl⟩)
   · simpa [p.head_eq, Cfg.init, ComputationPath.spaceUsedByTape] using
-      RunPath.natAbs_le_spaceUsedByTape_of_mem_visited p.toRunPath
+      RunPath.natAbs_le_spaceUsedByTape_of_mem_visited (p : ntm.RunPath input)
         (RunPath.mem_visitedByTapeHead_of_workTapes_ne _
           (by simpa [p.head_eq, Cfg.init, Cfg.storage] using hz))
 

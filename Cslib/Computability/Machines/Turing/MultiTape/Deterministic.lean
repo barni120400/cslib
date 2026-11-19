@@ -295,7 +295,7 @@ lemma ComputationPath.spaceUsedByTape_le_of_space_le (p : tm.ComputationPath inp
   -- a shorter path is a prefix of a longer one, so it visits fewer cells on each tape
   have hmono {p q : tm.ComputationPath input} (h : p.time ≤ q.time) :
       p.spaceUsedByTape ≤ q.spaceUsedByTape := fun i => by
-    change RunPath.spaceUsedByTape p.toRunPath i ≤ RunPath.spaceUsedByTape q.toRunPath i
+    unfold ComputationPath.spaceUsedByTape
     rw [RunPath.eq_take (by rw [p.head_eq, q.head_eq]) h]
     exact Finset.card_le_card (RunPath.visitedByTapeHead_take_subset _ _ i)
   rcases le_total p.time q.time with hpq | hqp
@@ -414,7 +414,7 @@ theorem computesInTimeAndSpace_iff_exists_runPath {output : List Symbol} {t s : 
       change tm.runFrom (tm.initCfg input) u = tm.runFrom (tm.initCfg input) t
       change (tm.runFrom (tm.initCfg input) t).Halted at hh
       grind only [runFrom_eq_of_halt]
-    exact ⟨p.toRunPath, rfl, hh, heq ▸ hout, le_rfl, h.2.2 p⟩
+    exact ⟨p, rfl, hh, heq ▸ hout, le_rfl, h.2.2 p⟩
   · rintro ⟨p, hhead, hhalt, hout, ht, hs⟩
     have hr : tm.runFrom (tm.initCfg input) p.length = p.last := by
       rw [← hhead, runPath_last_eq_runFrom]

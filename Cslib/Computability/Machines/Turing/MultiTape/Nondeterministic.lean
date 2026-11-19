@@ -183,10 +183,13 @@ structure ComputationPath (ntm : MultiTapeNTM k Symbol State) (input : List Symb
   /-- the path starts at the initial configuration -/
   head_eq : toRunPath.head = ntm.initCfg input
 
+instance : CoeOut (ntm.ComputationPath input) (ntm.RunPath input) :=
+  ⟨ComputationPath.toRunPath⟩
+
 namespace ComputationPath
 
 /-- The number of steps taken by a computation path. -/
-def time (p : ntm.ComputationPath input) : ℕ := RunPath.time p.toRunPath
+def time (p : ntm.ComputationPath input) : ℕ := RunPath.time (p : ntm.RunPath input)
 
 end ComputationPath
 

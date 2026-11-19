@@ -162,10 +162,11 @@ end RunPath
 
 /-- The number of positions visited by the head of work tape `i` along a computation path. -/
 def ComputationPath.spaceUsedByTape (p : ntm.ComputationPath input) (i : Fin k) : ℕ :=
-  RunPath.spaceUsedByTape p.toRunPath i
+  RunPath.spaceUsedByTape (p : ntm.RunPath input) i
 
 /-- The number of work tape cells visited along a computation path. -/
-def ComputationPath.space (p : ntm.ComputationPath input) : ℕ := RunPath.space p.toRunPath
+def ComputationPath.space (p : ntm.ComputationPath input) : ℕ :=
+  RunPath.space (p : ntm.RunPath input)
 
 /-- Every computation prefix on `input` visits at most `s` work-tape cells, regardless of its
 outcome. -/
